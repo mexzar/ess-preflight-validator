@@ -1,0 +1,902 @@
+{
+  "name": "ESS Pre-flight Validator Solution",
+  "version": "1.0.0",
+  "description": "Power Platform solution for Employee Self-Service deployment validation",
+  "publisher": "ESS Validator Publisher",
+  "solution": {
+    "uniqueName": "ESSPreFlightValidator",
+    "displayName": "ESS Pre-flight Validator",
+    "version": "1.0.0.0",
+    "components": [
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-Prerequisites",
+        "description": "Validates licensing, roles, and capacity requirements"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-Environment",
+        "description": "Validates Power Platform environment configuration"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-Authentication",
+        "description": "Validates Entra ID, SSO, and OAuth configurations"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-SAP-SuccessFactors",
+        "description": "Validates SAP SuccessFactors integration readiness"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-Workday",
+        "description": "Validates Workday integration readiness"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-ServiceNow",
+        "description": "Validates ServiceNow integration readiness"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-Content",
+        "description": "Validates SharePoint knowledge sources and content"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-Topics",
+        "description": "Validates Copilot Studio topics configuration"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-Configuration",
+        "description": "Validates agent customization and settings"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Validate-Publishing",
+        "description": "Validates publishing and deployment readiness"
+      },
+      {
+        "type": "Flow",
+        "name": "ESS-Orchestrator-Validation",
+        "description": "Master orchestrator flow for all validation checks"
+      },
+      {
+        "type": "Table",
+        "name": "ess_validationresult",
+        "description": "Stores validation check results",
+        "columns": [
+          {"name": "ess_name", "type": "SingleLineOfText"},
+          {"name": "ess_checkpointid", "type": "SingleLineOfText"},
+          {"name": "ess_category", "type": "OptionSet"},
+          {"name": "ess_priority", "type": "OptionSet"},
+          {"name": "ess_status", "type": "OptionSet"},
+          {"name": "ess_result", "type": "MultiLineOfText"},
+          {"name": "ess_remediation", "type": "MultiLineOfText"},
+          {"name": "ess_documentationlink", "type": "URL"},
+          {"name": "ess_validationdate", "type": "DateTime"}
+        ]
+      },
+      {
+        "type": "Table",
+        "name": "ess_validationrun",
+        "description": "Tracks validation execution runs",
+        "columns": [
+          {"name": "ess_name", "type": "SingleLineOfText"},
+          {"name": "ess_rundate", "type": "DateTime"},
+          {"name": "ess_overallstatus", "type": "OptionSet"},
+          {"name": "ess_totchecks", "type": "WholeNumber"},
+          {"name": "ess_passed", "type": "WholeNumber"},
+          {"name": "ess_failed", "type": "WholeNumber"},
+          {"name": "ess_warnings", "type": "WholeNumber"},
+          {"name": "ess_executedby", "type": "Lookup"}
+        ]
+      },
+      {
+        "type": "Agent",
+        "name": "ESS Validation Reporter",
+        "description": "Copilot Studio agent for interactive validation reporting"
+      },
+      {
+        "type": "Topic",
+        "name": "Run Full Validation",
+        "description": "Triggers complete validation assessment"
+      },
+      {
+        "type": "Topic",
+        "name": "View Validation Results",
+        "description": "Displays validation results with remediation guidance"
+      },
+      {
+        "type": "Topic",
+        "name": "Check Prerequisites",
+        "description": "Runs prerequisites validation only"
+      },
+      {
+        "type": "Topic",
+        "name": "Check External Systems",
+        "description": "Validates external system integrations"
+      },
+      {
+        "type": "Topic",
+        "name": "Check Content Sources",
+        "description": "Validates knowledge sources and content"
+      },
+      {
+        "type": "CustomConnector",
+        "name": "ESS-Validator-Connector",
+        "description": "Custom connector for validation APIs"
+      }
+    ]
+  },
+  "flows": {
+    "ESS-Orchestrator-Validation": {
+      "trigger": {
+        "type": "Manual",
+        "inputs": {
+          "schema": {
+            "type": "object",
+            "properties": {
+              "ValidationScope": {
+                "type": "string",
+                "description": "Scope: Full, Prerequisites, Environment, Authentication, ExternalSystems, Content, Topics, Configuration, Publishing"
+              },
+              "EnvironmentId": {
+                "type": "string",
+                "description": "Target Power Platform environment ID"
+              }
+            }
+          }
+        }
+      },
+      "actions": [
+        {
+          "name": "Create-Validation-Run",
+          "type": "Dataverse.CreateRow",
+          "table": "ess_validationrun",
+          "inputs": {
+            "ess_name": "Validation Run @{utcNow()}",
+            "ess_rundate": "@utcNow()",
+            "ess_overallstatus": "In Progress"
+          }
+        },
+        {
+          "name": "Switch-Validation-Scope",
+          "type": "Switch",
+          "expression": "@triggerBody()?['ValidationScope']",
+          "cases": {
+            "Full": [
+              {"action": "Run-Prerequisites-Validation"},
+              {"action": "Run-Environment-Validation"},
+              {"action": "Run-Authentication-Validation"},
+              {"action": "Run-ExternalSystems-Validation"},
+              {"action": "Run-Content-Validation"},
+              {"action": "Run-Topics-Validation"},
+              {"action": "Run-Configuration-Validation"},
+              {"action": "Run-Publishing-Validation"}
+            ],
+            "Prerequisites": [{"action": "Run-Prerequisites-Validation"}],
+            "Environment": [{"action": "Run-Environment-Validation"}],
+            "Authentication": [{"action": "Run-Authentication-Validation"}],
+            "ExternalSystems": [{"action": "Run-ExternalSystems-Validation"}],
+            "Content": [{"action": "Run-Content-Validation"}],
+            "Topics": [{"action": "Run-Topics-Validation"}],
+            "Configuration": [{"action": "Run-Configuration-Validation"}],
+            "Publishing": [{"action": "Run-Publishing-Validation"}]
+          }
+        },
+        {
+          "name": "Calculate-Results",
+          "type": "Compose",
+          "inputs": {
+            "TotalChecks": "@length(body('Get-Validation-Results'))",
+            "Passed": "@length(filter(body('Get-Validation-Results'), lambda('item', equals(item()['ess_status'], 'Passed'))))",
+            "Failed": "@length(filter(body('Get-Validation-Results'), lambda('item', equals(item()['ess_status'], 'Failed'))))",
+            "Warnings": "@length(filter(body('Get-Validation-Results'), lambda('item', equals(item()['ess_status'], 'Warning'))))"
+          }
+        },
+        {
+          "name": "Update-Validation-Run",
+          "type": "Dataverse.UpdateRow",
+          "table": "ess_validationrun",
+          "inputs": {
+            "ess_totchecks": "@outputs('Calculate-Results')['TotalChecks']",
+            "ess_passed": "@outputs('Calculate-Results')['Passed']",
+            "ess_failed": "@outputs('Calculate-Results')['Failed']",
+            "ess_warnings": "@outputs('Calculate-Results')['Warnings']",
+            "ess_overallstatus": "@if(equals(outputs('Calculate-Results')['Failed'], 0), 'Passed', 'Failed')"
+          }
+        },
+        {
+          "name": "Return-Results",
+          "type": "Response",
+          "inputs": {
+            "statusCode": 200,
+            "body": {
+              "ValidationRunId": "@outputs('Create-Validation-Run')?['body/ess_validationrunid']",
+              "OverallStatus": "@outputs('Update-Validation-Run')?['body/ess_overallstatus']",
+              "TotalChecks": "@outputs('Calculate-Results')['TotalChecks']",
+              "Passed": "@outputs('Calculate-Results')['Passed']",
+              "Failed": "@outputs('Calculate-Results')['Failed']",
+              "Warnings": "@outputs('Calculate-Results')['Warnings']"
+            }
+          }
+        }
+      ]
+    },
+    "ESS-Validate-Prerequisites": {
+      "description": "Validates licensing, roles, and capacity planning requirements",
+      "trigger": {
+        "type": "PowerPlatform.FlowButton"
+      },
+      "actions": [
+        {
+          "name": "Check-M365-Copilot-Licenses",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://graph.microsoft.com/v1.0/subscribedSkus",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        {
+          "name": "Validate-PRE-001",
+          "type": "Condition",
+          "expression": "@greater(length(filter(body('Check-M365-Copilot-Licenses')?['value'], lambda('sku', contains(sku()['skuPartNumber'], 'MICROSOFT_365_COPILOT')))), 0)",
+          "actions": {
+            "true": [
+              {
+                "name": "Record-PRE-001-Pass",
+                "type": "Dataverse.CreateRow",
+                "table": "ess_validationresult",
+                "inputs": {
+                  "ess_checkpointid": "PRE-001",
+                  "ess_category": "Prerequisites",
+                  "ess_priority": "Critical",
+                  "ess_status": "Passed",
+                  "ess_result": "Microsoft 365 Copilot licenses found: @{length(filter(body('Check-M365-Copilot-Licenses')?['value'], lambda('sku', contains(sku()['skuPartNumber'], 'MICROSOFT_365_COPILOT'))))}",
+                  "ess_documentationlink": "https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/prerequisites#licensing"
+                }
+              }
+            ],
+            "false": [
+              {
+                "name": "Record-PRE-001-Fail",
+                "type": "Dataverse.CreateRow",
+                "table": "ess_validationresult",
+                "inputs": {
+                  "ess_checkpointid": "PRE-001",
+                  "ess_category": "Prerequisites",
+                  "ess_priority": "Critical",
+                  "ess_status": "Failed",
+                  "ess_result": "No Microsoft 365 Copilot licenses found",
+                  "ess_remediation": "Purchase and assign Microsoft 365 Copilot licenses to users who will use the ESS agent. Minimum 1 license required.",
+                  "ess_documentationlink": "https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/prerequisites#licensing"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "Check-Copilot-Studio-Licenses",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://graph.microsoft.com/v1.0/subscribedSkus",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        {
+          "name": "Check-Power-Platform-Capacity",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://api.powerplatform.com/appmanagement/environments/@{triggerBody()?['EnvironmentId']}/capacity",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        {
+          "name": "Check-Global-Admin-Role",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://graph.microsoft.com/v1.0/directoryRoles",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        {
+          "name": "Check-Power-Platform-Admin-Role",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://graph.microsoft.com/v1.0/directoryRoles",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        }
+      ]
+    },
+    "ESS-Validate-Environment": {
+      "description": "Validates Power Platform environment configuration and readiness",
+      "trigger": {
+        "type": "PowerPlatform.FlowButton"
+      },
+      "actions": [
+        {
+          "name": "Get-Environment-Details",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://api.powerplatform.com/appmanagement/environments/@{triggerBody()?['EnvironmentId']}",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        {
+          "name": "Validate-ENV-001",
+          "type": "Condition",
+          "expression": "@not(empty(body('Get-Environment-Details')))",
+          "actions": {
+            "true": [
+              {
+                "name": "Record-ENV-001-Pass",
+                "type": "Dataverse.CreateRow",
+                "table": "ess_validationresult",
+                "inputs": {
+                  "ess_checkpointid": "ENV-001",
+                  "ess_category": "Environment",
+                  "ess_priority": "Critical",
+                  "ess_status": "Passed",
+                  "ess_result": "Power Platform environment exists: @{body('Get-Environment-Details')?['properties']?['displayName']}",
+                  "ess_documentationlink": "https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/prepare#set-up-your-power-platform-environment"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "Validate-ENV-002",
+          "type": "Condition",
+          "expression": "@equals(body('Get-Environment-Details')?['properties']?['linkedEnvironmentMetadata']?['type'], 'Dataverse')",
+          "actions": {
+            "true": [
+              {
+                "name": "Record-ENV-002-Pass",
+                "type": "Dataverse.CreateRow",
+                "table": "ess_validationresult",
+                "inputs": {
+                  "ess_checkpointid": "ENV-002",
+                  "ess_category": "Environment",
+                  "ess_priority": "Critical",
+                  "ess_status": "Passed",
+                  "ess_result": "Dataverse database is enabled",
+                  "ess_documentationlink": "https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/prepare#set-up-your-power-platform-environment"
+                }
+              }
+            ],
+            "false": [
+              {
+                "name": "Record-ENV-002-Fail",
+                "type": "Dataverse.CreateRow",
+                "table": "ess_validationresult",
+                "inputs": {
+                  "ess_checkpointid": "ENV-002",
+                  "ess_category": "Environment",
+                  "ess_priority": "Critical",
+                  "ess_status": "Failed",
+                  "ess_result": "Dataverse database is not enabled",
+                  "ess_remediation": "Enable Dataverse database for this environment. Go to Power Platform Admin Center > Environments > [Your Environment] > Add database.",
+                  "ess_documentationlink": "https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/prepare#set-up-your-power-platform-environment"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "Check-DLP-Policies",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://api.powerplatform.com/governance/dlpPolicies?environmentId=@{triggerBody()?['EnvironmentId']}",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        {
+          "name": "Check-Copilot-Studio-Access",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://api.powerplatform.com/appmanagement/environments/@{triggerBody()?['EnvironmentId']}/bots",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        }
+      ]
+    },
+    "ESS-Validate-Authentication": {
+      "description": "Validates Entra ID, SSO, OAuth, and authentication configurations",
+      "trigger": {
+        "type": "PowerPlatform.FlowButton"
+      },
+      "actions": [
+        {
+          "name": "Check-Entra-ID-Status",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://graph.microsoft.com/v1.0/organization",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        {
+          "name": "Validate-AUTH-001",
+          "type": "Condition",
+          "expression": "@not(empty(body('Check-Entra-ID-Status')?['value']))",
+          "actions": {
+            "true": [
+              {
+                "name": "Record-AUTH-001-Pass",
+                "type": "Dataverse.CreateRow",
+                "table": "ess_validationresult",
+                "inputs": {
+                  "ess_checkpointid": "AUTH-001",
+                  "ess_category": "Authentication",
+                  "ess_priority": "Critical",
+                  "ess_status": "Passed",
+                  "ess_result": "Microsoft Entra ID is configured and accessible",
+                  "ess_documentationlink": "https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/prerequisites#identity-authentication-and-single-sign-on-sso"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "Check-SSO-Configuration",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://graph.microsoft.com/v1.0/identity/conditionalAccess/policies",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        },
+        {
+          "name": "Check-App-Registrations",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "https://graph.microsoft.com/v1.0/applications",
+          "authentication": {
+            "type": "ManagedServiceIdentity"
+          }
+        }
+      ]
+    },
+    "ESS-Validate-SAP-SuccessFactors": {
+      "description": "Validates SAP SuccessFactors integration configuration and connectivity",
+      "trigger": {
+        "type": "PowerPlatform.FlowButton"
+      },
+      "actions": [
+        {
+          "name": "Check-SAP-Solution-Package",
+          "type": "Dataverse.ListRows",
+          "table": "solution",
+          "filter": "contains(uniquename, 'sap') or contains(uniquename, 'successfactors')"
+        },
+        {
+          "name": "Validate-SAP-001",
+          "type": "Condition",
+          "expression": "@greater(length(body('Check-SAP-Solution-Package')?['value']), 0)",
+          "actions": {
+            "true": [
+              {
+                "name": "Record-SAP-001-Pass",
+                "type": "Dataverse.CreateRow",
+                "table": "ess_validationresult",
+                "inputs": {
+                  "ess_checkpointid": "SAP-001",
+                  "ess_category": "External Systems",
+                  "ess_priority": "High",
+                  "ess_status": "Passed",
+                  "ess_result": "SAP SuccessFactors solution package is installed",
+                  "ess_documentationlink": "https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/sap-successfactors"
+                }
+              }
+            ],
+            "false": [
+              {
+                "name": "Record-SAP-001-Fail",
+                "type": "Dataverse.CreateRow",
+                "table": "ess_validationresult",
+                "inputs": {
+                  "ess_checkpointid": "SAP-001",
+                  "ess_category": "External Systems",
+                  "ess_priority": "High",
+                  "ess_status": "Failed",
+                  "ess_result": "SAP SuccessFactors solution package is not installed",
+                  "ess_remediation": "Install the SAP SuccessFactors accelerator package from the ESS installation process. This package includes connectors, flows, and templates for SAP integration.",
+                  "ess_documentationlink": "https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/sap-successfactors"
+                }
+              }
+            ]
+          }
+        },
+        {
+          "name": "Check-SAP-Connection-Reference",
+          "type": "Dataverse.ListRows",
+          "table": "connectionreference",
+          "filter": "contains(connectionreferencelogicalname, 'sap')"
+        },
+        {
+          "name": "Test-SAP-Connectivity",
+          "type": "HTTP",
+          "method": "GET",
+          "uri": "@{variables('SAPODataEndpoint')}/odata/v2/",
+          "authentication": {
+            "type": "OAuth"
+          }
+        },
+        {
+          "name": "Validate-Employee-Read-Template",
+          "type": "Compose",
+          "inputs": {
+            "validateJSON": true,
+            "schema": "SAP Employee Read Template JSON Schema"
+          }
+        }
+      ]
+    }
+  },
+  "dataverse": {
+    "tables": {
+      "ess_validationresult": {
+        "displayName": "ESS Validation Result",
+        "pluralName": "ESS Validation Results",
+        "description": "Stores individual validation checkpoint results",
+        "primaryNameAttribute": "ess_name",
+        "columns": [
+          {
+            "logicalName": "ess_checkpointid",
+            "displayName": "Checkpoint ID",
+            "type": "SingleLineOfText",
+            "maxLength": 50,
+            "required": true
+          },
+          {
+            "logicalName": "ess_category",
+            "displayName": "Category",
+            "type": "OptionSet",
+            "options": [
+              {"value": 1, "label": "Prerequisites"},
+              {"value": 2, "label": "Environment"},
+              {"value": 3, "label": "Authentication"},
+              {"value": 4, "label": "External Systems"},
+              {"value": 5, "label": "Content"},
+              {"value": 6, "label": "Topics"},
+              {"value": 7, "label": "Configuration"},
+              {"value": 8, "label": "Publishing"},
+              {"value": 9, "label": "Infrastructure"},
+              {"value": 10, "label": "Monitoring"}
+            ]
+          },
+          {
+            "logicalName": "ess_priority",
+            "displayName": "Priority",
+            "type": "OptionSet",
+            "options": [
+              {"value": 1, "label": "Critical"},
+              {"value": 2, "label": "High"},
+              {"value": 3, "label": "Medium"},
+              {"value": 4, "label": "Low"}
+            ]
+          },
+          {
+            "logicalName": "ess_status",
+            "displayName": "Status",
+            "type": "OptionSet",
+            "options": [
+              {"value": 1, "label": "Passed"},
+              {"value": 2, "label": "Failed"},
+              {"value": 3, "label": "Warning"},
+              {"value": 4, "label": "Not Configured"}
+            ]
+          },
+          {
+            "logicalName": "ess_result",
+            "displayName": "Result",
+            "type": "MultiLineOfText",
+            "format": "Text",
+            "maxLength": 2000
+          },
+          {
+            "logicalName": "ess_remediation",
+            "displayName": "Remediation",
+            "type": "MultiLineOfText",
+            "format": "Text",
+            "maxLength": 4000
+          },
+          {
+            "logicalName": "ess_documentationlink",
+            "displayName": "Documentation Link",
+            "type": "URL",
+            "maxLength": 500
+          },
+          {
+            "logicalName": "ess_validationdate",
+            "displayName": "Validation Date",
+            "type": "DateTime",
+            "format": "DateAndTime",
+            "behavior": "UserLocal"
+          },
+          {
+            "logicalName": "ess_validationrunid",
+            "displayName": "Validation Run",
+            "type": "Lookup",
+            "targets": ["ess_validationrun"]
+          }
+        ]
+      },
+      "ess_validationrun": {
+        "displayName": "ESS Validation Run",
+        "pluralName": "ESS Validation Runs",
+        "description": "Tracks validation execution runs",
+        "primaryNameAttribute": "ess_name",
+        "columns": [
+          {
+            "logicalName": "ess_rundate",
+            "displayName": "Run Date",
+            "type": "DateTime",
+            "format": "DateAndTime",
+            "behavior": "UserLocal",
+            "required": true
+          },
+          {
+            "logicalName": "ess_overallstatus",
+            "displayName": "Overall Status",
+            "type": "OptionSet",
+            "options": [
+              {"value": 1, "label": "In Progress"},
+              {"value": 2, "label": "Passed"},
+              {"value": 3, "label": "Failed"},
+              {"value": 4, "label": "Partial"}
+            ]
+          },
+          {
+            "logicalName": "ess_totalchecks",
+            "displayName": "Total Checks",
+            "type": "WholeNumber",
+            "minValue": 0,
+            "maxValue": 10000
+          },
+          {
+            "logicalName": "ess_passed",
+            "displayName": "Passed",
+            "type": "WholeNumber",
+            "minValue": 0,
+            "maxValue": 10000
+          },
+          {
+            "logicalName": "ess_failed",
+            "displayName": "Failed",
+            "type": "WholeNumber",
+            "minValue": 0,
+            "maxValue": 10000
+          },
+          {
+            "logicalName": "ess_warnings",
+            "displayName": "Warnings",
+            "type": "WholeNumber",
+            "minValue": 0,
+            "maxValue": 10000
+          },
+          {
+            "logicalName": "ess_notconfigured",
+            "displayName": "Not Configured",
+            "type": "WholeNumber",
+            "minValue": 0,
+            "maxValue": 10000
+          },
+          {
+            "logicalName": "ess_validationscope",
+            "displayName": "Validation Scope",
+            "type": "OptionSet",
+            "options": [
+              {"value": 1, "label": "Full"},
+              {"value": 2, "label": "Prerequisites"},
+              {"value": 3, "label": "Environment"},
+              {"value": 4, "label": "Authentication"},
+              {"value": 5, "label": "External Systems"},
+              {"value": 6, "label": "Content"},
+              {"value": 7, "label": "Topics"},
+              {"value": 8, "label": "Configuration"},
+              {"value": 9, "label": "Publishing"}
+            ]
+          },
+          {
+            "logicalName": "ess_executedby",
+            "displayName": "Executed By",
+            "type": "Lookup",
+            "targets": ["systemuser"]
+          },
+          {
+            "logicalName": "ess_environmentid",
+            "displayName": "Environment ID",
+            "type": "SingleLineOfText",
+            "maxLength": 100
+          }
+        ]
+      }
+    }
+  },
+  "copilotStudio": {
+    "agent": {
+      "name": "ESS Validation Reporter",
+      "description": "Interactive agent for viewing and managing ESS deployment validation results",
+      "instructions": "You are the ESS Validation Reporter agent. Your role is to help users understand Employee Self-Service agent deployment validation results, provide remediation guidance, and answer questions about deployment readiness. Always reference specific checkpoint IDs and provide links to Microsoft Learn documentation when discussing validation failures.",
+      "topics": [
+        {
+          "name": "Run Full Validation",
+          "triggerPhrases": [
+            "run validation",
+            "check deployment readiness",
+            "validate ESS deployment",
+            "run all checks",
+            "pre-flight check"
+          ],
+          "nodes": [
+            {
+              "type": "Message",
+              "text": "I'll run a comprehensive validation of your ESS deployment. This will check prerequisites, environment, authentication, external systems, content, topics, configuration, and publishing readiness."
+            },
+            {
+              "type": "Action",
+              "name": "Call-ESS-Orchestrator-Validation",
+              "inputs": {
+                "ValidationScope": "Full",
+                "EnvironmentId": "{Global.EnvironmentId}"
+              }
+            },
+            {
+              "type": "Condition",
+              "expression": "outputs('Call-ESS-Orchestrator-Validation')['OverallStatus'] = 'Passed'",
+              "true": [
+                {
+                  "type": "Message",
+                  "text": "✅ Validation completed successfully! Your ESS deployment is ready.\n\n**Summary:**\n- Total Checks: {outputs('Call-ESS-Orchestrator-Validation')['TotalChecks']}\n- Passed: {outputs('Call-ESS-Orchestrator-Validation')['Passed']}\n- Failed: {outputs('Call-ESS-Orchestrator-Validation')['Failed']}\n- Warnings: {outputs('Call-ESS-Orchestrator-Validation')['Warnings']}\n\nYou can proceed with deployment."
+                }
+              ],
+              "false": [
+                {
+                  "type": "Message",
+                  "text": "⚠️ Validation completed with issues. Your ESS deployment is not ready.\n\n**Summary:**\n- Total Checks: {outputs('Call-ESS-Orchestrator-Validation')['TotalChecks']}\n- Passed: {outputs('Call-ESS-Orchestrator-Validation')['Passed']}\n- Failed: {outputs('Call-ESS-Orchestrator-Validation')['Failed']}\n- Warnings: {outputs('Call-ESS-Orchestrator-Validation')['Warnings']}\n\nI can help you understand and fix these issues. Would you like to see the detailed results?"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "View Validation Results",
+          "triggerPhrases": [
+            "show validation results",
+            "what failed",
+            "view results",
+            "show me the issues",
+            "what needs to be fixed"
+          ],
+          "nodes": [
+            {
+              "type": "Action",
+              "name": "Get-Latest-Validation-Run",
+              "type": "Dataverse.ListRows",
+              "table": "ess_validationrun",
+              "orderBy": "ess_rundate desc",
+              "top": 1
+            },
+            {
+              "type": "Action",
+              "name": "Get-Failed-Results",
+              "type": "Dataverse.ListRows",
+              "table": "ess_validationresult",
+              "filter": "ess_validationrunid eq {outputs('Get-Latest-Validation-Run')[0]['ess_validationrunid']} and ess_status eq 2",
+              "orderBy": "ess_priority asc"
+            },
+            {
+              "type": "Message",
+              "text": "Here are the validation issues that need attention:\n\n{ForEach-Failed-Result}"
+            },
+            {
+              "type": "AdaptiveCard",
+              "card": {
+                "type": "AdaptiveCard",
+                "version": "1.5",
+                "body": [
+                  {
+                    "type": "TextBlock",
+                    "text": "Validation Issues",
+                    "weight": "Bolder",
+                    "size": "Large"
+                  },
+                  {
+                    "type": "Container",
+                    "items": [
+                      {
+                        "type": "ColumnSet",
+                        "columns": [
+                          {
+                            "type": "Column",
+                            "width": "auto",
+                            "items": [
+                              {
+                                "type": "TextBlock",
+                                "text": "❌",
+                                "size": "Large"
+                              }
+                            ]
+                          },
+                          {
+                            "type": "Column",
+                            "width": "stretch",
+                            "items": [
+                              {
+                                "type": "TextBlock",
+                                "text": "{CheckpointId} - {Category}",
+                                "weight": "Bolder"
+                              },
+                              {
+                                "type": "TextBlock",
+                                "text": "{Result}",
+                                "wrap": true
+                              },
+                              {
+                                "type": "TextBlock",
+                                "text": "**How to fix:** {Remediation}",
+                                "wrap": true,
+                                "color": "Accent"
+                              }
+                            ]
+                          }
+                        ]
+                      }
+                    ],
+                    "$data": "{GetFailedResults}"
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "Action.OpenUrl",
+                    "title": "View Documentation",
+                    "url": "{DocumentationLink}"
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Check Prerequisites",
+          "triggerPhrases": [
+            "check prerequisites",
+            "validate licensing",
+            "check roles",
+            "verify capacity"
+          ],
+          "nodes": [
+            {
+              "type": "Message",
+              "text": "I'll validate all prerequisite requirements including licensing, roles, and capacity planning."
+            },
+            {
+              "type": "Action",
+              "name": "Call-Prerequisites-Validation",
+              "inputs": {
+                "ValidationScope": "Prerequisites"
+              }
+            },
+            {
+              "type": "Message",
+              "text": "Prerequisites validation completed. {ResultsSummary}"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,32 @@
+# User-specific files
+.ess-validator/
+*.user
+*.suo
+
+# Test results and reports
+ESS-Reports/
+*-Reports/
+
+# Temporary files
+*.tmp
+*.log
+~$*
+
+# Sensitive data
+*.credentials
+*.secrets
+profiles.json
+
+# PowerShell module cache
+*.psm1.bak
+
+# Backup files
+*.bak
+*-Copy.psm1
+
+# Build artifacts
+*.zip
+
+# OS files
+Thumbs.db
+.DS_Store

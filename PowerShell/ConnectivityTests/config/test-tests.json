@@ -1,0 +1,61 @@
+{
+  "description": "ESS Connectivity Test Suite - Test/Development Configuration",
+  "environment": "test",
+  "workday": {
+    "tenant": "yourcompany_sandbox1",
+    "isu": {
+      "username": "ESS_Integration_Test@yourcompany_sandbox1",
+      "password": "REPLACE_WITH_TEST_PASSWORD",
+      "description": "Test ISU account for non-production validation"
+    },
+    "sso": {
+      "tenantId": "87654321-4321-4321-4321-210987654321",
+      "description": "Test Azure AD tenant ID (M365CPI82179849.onmicrosoft.com)"
+    }
+  },
+  "servicenow": {
+    "instance": "yourcompanydev",
+    "username": "admin",
+    "password": "REPLACE_WITH_TEST_PASSWORD",
+    "oauth": {
+      "clientId": "",
+      "clientSecret": "",
+      "enabled": false
+    },
+    "description": "ServiceNow developer instance for testing (yourcompanydev.service-now.com)"
+  },
+  "sap": {
+    "endpoint": "https://sap-test.yourcompany.com:8000/sap/opu/odata/sap/",
+    "username": "TEST_USER",
+    "password": "REPLACE_WITH_TEST_PASSWORD",
+    "client": "900",
+    "description": "SAP test system OData endpoint"
+  },
+  "copilot": {
+    "environmentId": "87654321-4321-4321-4321-210987654321",
+    "agentId": "cr123_essdevagent",
+    "agentName": "ESS Dev Agent",
+    "description": "Copilot Studio agent in test environment",
+    "testScenarios": [
+      "Comprehensive"
+    ]
+  },
+  "reporting": {
+    "outputPath": "C:\\ESS-Reports\\Test",
+    "includeDetailedLogs": true,
+    "autoOpenReports": false
+  },
+  "notifications": {
+    "emailOnFailure": false,
+    "emailRecipients": [
+      "ess-dev-team@yourcompany.com"
+    ],
+    "teamsWebhookUrl": ""
+  },
+  "security": {
+    "encryptPasswords": false,
+    "useKeyVault": false,
+    "keyVaultName": "",
+    "notes": "Test environment - using basic authentication for development convenience"
+  }
+}

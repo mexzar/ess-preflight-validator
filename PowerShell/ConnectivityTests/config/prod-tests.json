@@ -1,0 +1,64 @@
+{
+  "description": "ESS Connectivity Test Suite - Production Configuration",
+  "environment": "production",
+  "workday": {
+    "tenant": "yourcompany",
+    "isu": {
+      "username": "ESS_Integration@yourcompany",
+      "password": "REPLACE_WITH_SECURE_PASSWORD",
+      "description": "Integration System User for SOAP API authentication"
+    },
+    "sso": {
+      "tenantId": "12345678-1234-1234-1234-123456789012",
+      "description": "Azure AD tenant ID for OAuth SSO authentication"
+    }
+  },
+  "servicenow": {
+    "instance": "yourcompany",
+    "username": "ess.integration",
+    "password": "REPLACE_WITH_SECURE_PASSWORD",
+    "oauth": {
+      "clientId": "REPLACE_WITH_CLIENT_ID",
+      "clientSecret": "REPLACE_WITH_CLIENT_SECRET",
+      "enabled": false
+    },
+    "description": "ServiceNow instance configuration (yourcompany.service-now.com)"
+  },
+  "sap": {
+    "endpoint": "https://sap-gateway.yourcompany.com:8000/sap/opu/odata/sap/",
+    "username": "ESS_USER",
+    "password": "REPLACE_WITH_SECURE_PASSWORD",
+    "client": "100",
+    "description": "SAP OData endpoint configuration"
+  },
+  "copilot": {
+    "environmentId": "12345678-1234-1234-1234-123456789012",
+    "agentId": "cr123_essuserserviceagent",
+    "agentName": "ESS User Service Agent",
+    "description": "Copilot Studio agent in production environment",
+    "testScenarios": [
+      "Basic",
+      "HR",
+      "IT"
+    ]
+  },
+  "reporting": {
+    "outputPath": "C:\\ESS-Reports\\Production",
+    "includeDetailedLogs": true,
+    "autoOpenReports": true
+  },
+  "notifications": {
+    "emailOnFailure": true,
+    "emailRecipients": [
+      "ess-team@yourcompany.com",
+      "it-operations@yourcompany.com"
+    ],
+    "teamsWebhookUrl": "https://yourcompany.webhook.office.com/webhookb2/..."
+  },
+  "security": {
+    "encryptPasswords": true,
+    "useKeyVault": false,
+    "keyVaultName": "",
+    "notes": "For production, consider using Azure Key Vault to store credentials securely"
+  }
+}
