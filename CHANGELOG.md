@@ -4,6 +4,21 @@ All notable changes to ESS Pre-flight Validator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-01-10
+
+### Fixed
+- **CRITICAL**: Validation functions now return results properly to calling scripts
+- Added `return $script:ValidationResults` to all Test-ESS* validation functions
+- Each validation function now clears `$script:ValidationResults` at start to prevent result accumulation
+- Fixed Start-ESSDeployment.ps1 Phase 1 showing "0 passed, 0 failed, 0 warnings" when validation checks actually ran
+- Deployment wizard now correctly captures and displays validation checkpoint results
+- Phase HTML reports now show accurate validation statistics
+
+### Technical Details
+- Modified functions: Test-ESSPrerequisites, Test-ESSEnvironment, Test-ESSAuthentication, Test-ESSExternalSystems, Test-ESSContent, Test-ESSTopics, Test-ESSConfiguration, Test-ESSPublishing
+- Each function now follows pattern: clear results → run validations → return results
+- Fixes issue where module-scoped variables weren't accessible to calling scripts
+
 ## [1.1.0] - 2026-01-10
 
 ### Added
