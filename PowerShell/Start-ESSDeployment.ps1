@@ -303,11 +303,11 @@ function Initialize-DeploymentSession {
                 Disconnect-MgGraph -ErrorAction SilentlyContinue | Out-Null
             } catch {}
             
-            # Force new connection with specified account using -AccountId
-            Write-Host "🔐 Connecting to Microsoft Graph as $customAccount..." -ForegroundColor Cyan
-            Write-Host "  → You will be prompted to sign in with this account" -ForegroundColor Yellow
+            # Force new connection - user will be prompted to select account
+            Write-Host "🔐 Connecting to Microsoft Graph..." -ForegroundColor Cyan
+            Write-Host "  → Please sign in as: $customAccount" -ForegroundColor Yellow
             try {
-                Connect-MgGraph -AccountId $customAccount -Scopes "User.Read.All", "Directory.Read.All", "RoleManagement.Read.All", "Organization.Read.All" -NoWelcome -ErrorAction Stop
+                Connect-MgGraph -Scopes "User.Read.All", "Directory.Read.All", "RoleManagement.Read.All", "Organization.Read.All" -NoWelcome -ErrorAction Stop
                 
                 # Verify we're connected as the requested account
                 $newContext = Get-MgContext
