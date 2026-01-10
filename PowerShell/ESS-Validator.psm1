@@ -154,6 +154,9 @@ function Test-ESSPrerequisites {
     [CmdletBinding()]
     param()
 
+    # Clear previous validation results
+    $script:ValidationResults = @()
+
     Write-Host "`n🔍 Validating Prerequisites..." -ForegroundColor Cyan
 
     # PRE-001: Microsoft 365 Copilot licenses
@@ -243,6 +246,7 @@ function Test-ESSPrerequisites {
     }
 
     Write-Host "✓ Prerequisites validation completed" -ForegroundColor Green
+    return $script:ValidationResults
 }
 
 <#
@@ -259,6 +263,9 @@ function Test-ESSEnvironment {
         [Parameter(Mandatory = $true)]
         [string]$EnvironmentId
     )
+
+    # Clear previous validation results
+    $script:ValidationResults = @()
 
     Write-Host "`n🔍 Validating Environment Configuration..." -ForegroundColor Cyan
 
@@ -331,6 +338,7 @@ function Test-ESSEnvironment {
     }
 
     Write-Host "✓ Environment validation completed" -ForegroundColor Green
+    return $script:ValidationResults
 }
 
 <#
@@ -343,6 +351,9 @@ function Test-ESSEnvironment {
 function Test-ESSAuthentication {
     [CmdletBinding()]
     param()
+
+    # Clear previous validation results
+    $script:ValidationResults = @()
 
     Write-Host "`n🔍 Validating Authentication Configuration..." -ForegroundColor Cyan
 
@@ -407,6 +418,7 @@ function Test-ESSAuthentication {
     }
 
     Write-Host "✓ Authentication validation completed" -ForegroundColor Green
+    return $script:ValidationResults
 }
 
 <#
@@ -423,7 +435,10 @@ function Test-ESSExternalSystems {
         [string]$EnvironmentId
     )
 
-    Write-Host "`n🔍 Validating External Systems Integration..." -ForegroundColor Cyan
+    # Clear previous validation results
+    $script:ValidationResults = @()
+
+    Write-Host "`n🔍 Validating External Systems..." -ForegroundColor Cyan
 
     # Check for SAP SuccessFactors solution
     Write-Verbose "Checking SAP SuccessFactors solution package..."
@@ -474,6 +489,7 @@ function Test-ESSExternalSystems {
     }
 
     Write-Host "✓ External systems validation completed" -ForegroundColor Green
+    return $script:ValidationResults
 }
 
 <#
@@ -490,7 +506,10 @@ function Test-ESSContent {
         [string]$EnvironmentId
     )
 
-    Write-Host "`n🔍 Validating Content & Knowledge Sources..." -ForegroundColor Cyan
+    # Clear previous validation results
+    $script:ValidationResults = @()
+
+    Write-Host "`n🔍 Validating ESS Content..." -ForegroundColor Cyan
 
     Write-Host "  ℹ️  Content validation requires manual verification in Copilot Studio" -ForegroundColor Yellow
     
@@ -505,6 +524,7 @@ function Test-ESSContent {
         -DocumentationLink 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/known-issues-limitations'
 
     Write-Host "✓ Content validation completed (manual checks required)" -ForegroundColor Green
+    return $script:ValidationResults
 }
 
 <#
@@ -521,7 +541,10 @@ function Test-ESSTopics {
         [string]$EnvironmentId
     )
 
-    Write-Host "`n🔍 Validating Topics Configuration..." -ForegroundColor Cyan
+    # Clear previous validation results
+    $script:ValidationResults = @()
+
+    Write-Host "`n🔍 Validating ESS Topics..." -ForegroundColor Cyan
 
     Write-Host "  ℹ️  Topics validation requires manual verification in Copilot Studio" -ForegroundColor Yellow
     
@@ -542,6 +565,7 @@ function Test-ESSTopics {
     }
 
     Write-Host "✓ Topics validation completed (manual checks required)" -ForegroundColor Green
+    return $script:ValidationResults
 }
 
 <#
@@ -558,7 +582,10 @@ function Test-ESSConfiguration {
         [string]$EnvironmentId
     )
 
-    Write-Host "`n🔍 Validating Agent Configuration..." -ForegroundColor Cyan
+    # Clear previous validation results
+    $script:ValidationResults = @()
+
+    Write-Host "`n🔍 Validating ESS Configuration..." -ForegroundColor Cyan
 
     Write-Host "  ℹ️  Configuration validation requires manual verification in Copilot Studio" -ForegroundColor Yellow
     
@@ -579,6 +606,7 @@ function Test-ESSConfiguration {
     }
 
     Write-Host "✓ Configuration validation completed (manual checks required)" -ForegroundColor Green
+    return $script:ValidationResults
 }
 
 <#
@@ -595,7 +623,10 @@ function Test-ESSPublishing {
         [string]$EnvironmentId
     )
 
-    Write-Host "`n🔍 Validating Publishing Readiness..." -ForegroundColor Cyan
+    # Clear previous validation results
+    $script:ValidationResults = @()
+
+    Write-Host "`n🔍 Validating Publishing Configuration..." -ForegroundColor Cyan
 
     Write-Host "  ℹ️  Publishing validation requires manual verification" -ForegroundColor Yellow
     
@@ -617,6 +648,7 @@ function Test-ESSPublishing {
     }
 
     Write-Host "✓ Publishing validation completed (manual checks required)" -ForegroundColor Green
+    return $script:ValidationResults
 }
 
 <#
