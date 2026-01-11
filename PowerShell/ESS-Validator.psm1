@@ -154,9 +154,6 @@ function Test-ESSPrerequisites {
     [CmdletBinding()]
     param()
 
-    # Clear previous validation results
-    $script:ValidationResults = @()
-
     Write-Host "`n🔍 Validating Prerequisites..." -ForegroundColor Cyan
 
     # PRE-001: Microsoft 365 Copilot licenses
@@ -264,9 +261,6 @@ function Test-ESSEnvironment {
         [string]$EnvironmentId
     )
 
-    # Clear previous validation results
-    $script:ValidationResults = @()
-
     Write-Host "`n🔍 Validating Environment Configuration..." -ForegroundColor Cyan
 
     # ENV-001: Power Platform environment exists
@@ -352,9 +346,6 @@ function Test-ESSAuthentication {
     [CmdletBinding()]
     param()
 
-    # Clear previous validation results
-    $script:ValidationResults = @()
-
     Write-Host "`n🔍 Validating Authentication Configuration..." -ForegroundColor Cyan
 
     # AUTH-001: Entra ID configured
@@ -435,9 +426,6 @@ function Test-ESSExternalSystems {
         [string]$EnvironmentId
     )
 
-    # Clear previous validation results
-    $script:ValidationResults = @()
-
     Write-Host "`n🔍 Validating External Systems..." -ForegroundColor Cyan
 
     # Check for SAP SuccessFactors solution
@@ -458,8 +446,8 @@ function Test-ESSExternalSystems {
 
     # Check for Workday solution
     Write-Verbose "Checking Workday solution package..."
-    $workdaySolution = Get-AdminPowerAppEnvironment -EnvironmentName $EnvironmentId | 
-        Get-AdminFlow -Filter "contains(displayName, 'Workday')"
+    $workdaySolution = Get-AdminFlow -EnvironmentName $EnvironmentId | 
+        Where-Object { $_.DisplayName -like "*Workday*" }
     
     if ($workdaySolution) {
         Add-ValidationResult -CheckpointId 'WD-001' -Category 'External Systems' -Priority 'High' -Status 'Passed' `
@@ -474,8 +462,8 @@ function Test-ESSExternalSystems {
 
     # Check for ServiceNow solution
     Write-Verbose "Checking ServiceNow solution package..."
-    $serviceNowSolution = Get-AdminPowerAppEnvironment -EnvironmentName $EnvironmentId | 
-        Get-AdminFlow -Filter "contains(displayName, 'ServiceNow')"
+    $serviceNowSolution = Get-AdminFlow -EnvironmentName $EnvironmentId | 
+        Where-Object { $_.DisplayName -like "*ServiceNow*" }
     
     if ($serviceNowSolution) {
         Add-ValidationResult -CheckpointId 'SN-001' -Category 'External Systems' -Priority 'High' -Status 'Passed' `
@@ -505,9 +493,6 @@ function Test-ESSContent {
         [Parameter(Mandatory = $true)]
         [string]$EnvironmentId
     )
-
-    # Clear previous validation results
-    $script:ValidationResults = @()
 
     Write-Host "`n🔍 Validating ESS Content..." -ForegroundColor Cyan
 
@@ -540,9 +525,6 @@ function Test-ESSTopics {
         [Parameter(Mandatory = $true)]
         [string]$EnvironmentId
     )
-
-    # Clear previous validation results
-    $script:ValidationResults = @()
 
     Write-Host "`n🔍 Validating ESS Topics..." -ForegroundColor Cyan
 
@@ -582,9 +564,6 @@ function Test-ESSConfiguration {
         [string]$EnvironmentId
     )
 
-    # Clear previous validation results
-    $script:ValidationResults = @()
-
     Write-Host "`n🔍 Validating ESS Configuration..." -ForegroundColor Cyan
 
     Write-Host "  ℹ️  Configuration validation requires manual verification in Copilot Studio" -ForegroundColor Yellow
@@ -622,9 +601,6 @@ function Test-ESSPublishing {
         [Parameter(Mandatory = $true)]
         [string]$EnvironmentId
     )
-
-    # Clear previous validation results
-    $script:ValidationResults = @()
 
     Write-Host "`n🔍 Validating Publishing Configuration..." -ForegroundColor Cyan
 
@@ -731,6 +707,16 @@ function Get-ValidationSummary {
     }
     
     return $summary
+}
+
+<#
+.SYNOPSIS
+    Clears all validation results
+.DESCRIPTION
+    Resets the validation results array. Useful when running multiple independent validations.
+#>
+function Clear-ValidationResults {
+    $script:ValidationResults = @()
 }
 
 <#
@@ -928,6 +914,7 @@ Export-ModuleMember -Function @(
     'Test-ESSContent',
     'Test-ESSTopics',
     'Test-ESSConfiguration',
-    'Test-ESSPublishing'
+    'Test-ESSPublishing',
+    'Clear-ValidationResults'
 )
 

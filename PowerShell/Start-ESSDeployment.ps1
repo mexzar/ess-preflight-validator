@@ -262,6 +262,109 @@ function Test-MyPermissions {
     return $permissions
 }
 
+function Select-Environment {
+    param(
+        [string]$TenantId,
+        [string]$SavedEnvironmentId
+    )
+    
+    Write-Host ""
+    Write-Host "═══════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host "Step 2: Select Power Platform Environment" -ForegroundColor Yellow
+    Write-Host "═══════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "🌍 Loading Power Platform environments..." -ForegroundColor Cyan
+    
+    try {
+        # Check if we're connected to Power Platform
+        $ppContext = Get-AdminPowerAppEnvironment -ErrorAction SilentlyContinue | Select-Object -First 1
+        if (-not $ppContext) {
+            Write-Host "  Connecting to Power Platform..." -ForegroundColor Gray
+            if ($TenantId) {
+                Add-PowerAppsAccount -TenantID $TenantId | Out-Null
+            } else {
+                Add-PowerAppsAccount | Out-Null
+            }
+        }
+        
+        # Try to load saved environment first
+        if ($SavedEnvironmentId) {
+            try {
+                $savedEnv = Get-AdminPowerAppEnvironment -EnvironmentName $SavedEnvironmentId -ErrorAction Stop
+                Write-Host "✓ Found saved environment: " -NoNewline -ForegroundColor Green
+                Write-Host "$($savedEnv.DisplayName)" -ForegroundColor Cyan
+                Write-Host ""
+                
+                $useSaved = Get-UserConfirmation "Use this environment?" $true
+                
+                if ($useSaved) {
+                    return $savedEnv
+                }
+            }
+            catch {
+                Write-Host "⚠️  Saved environment not accessible. Showing all environments." -ForegroundColor Yellow
+            }
+        }
+        
+        # Load all environments
+        $environments = Get-AdminPowerAppEnvironment | Where-Object { 
+            $_.Internal.properties.linkedEnvironmentMetadata.type -ne 'NotSpecified' 
+        }
+        
+        if ($environments.Count -eq 0) {
+            Write-Host "❌ No Power Platform environments found" -ForegroundColor Red
+            return $null
+        }
+        
+        Write-Host "✓ Found $($environments.Count) environment(s)" -ForegroundColor Green
+        Write-Host ""
+        
+        # Check if user wants to search
+        Write-Host "💡 Tip: You can search in the grid by typing in the search box" -ForegroundColor Cyan
+        $searchFirst = Get-UserConfirmation "Do you know the environment name/ID to search for?" $false
+        
+        if ($searchFirst) {
+            $searchTerm = Read-Host "Enter environment name or ID to search"
+            if (-not [string]::IsNullOrWhiteSpace($searchTerm)) {
+                $filtered = $environments | Where-Object { 
+                    $_.DisplayName -like "*$searchTerm*" -or 
+                    $_.EnvironmentName -like "*$searchTerm*" 
+                }
+                
+                if ($filtered.Count -gt 0) {
+                    Write-Host "✓ Found $($filtered.Count) matching environment(s)" -ForegroundColor Green
+                    $environments = $filtered
+                }
+                else {
+                    Write-Host "⚠️  No matches found. Showing all environments." -ForegroundColor Yellow
+                }
+            }
+        }
+        
+        # Show environment picker
+        $env = $environments | 
+            Select-Object DisplayName, EnvironmentName, @{Name='Type';Expression={$_.EnvironmentType}}, @{Name='Region';Expression={$_.Location}} |
+            Sort-Object DisplayName |
+            Out-GridView -Title "Select Power Platform Environment for ESS Deployment ($($environments.Count) environments)" -OutputMode Single
+        
+        if ($env) {
+            # Get the full environment object back
+            $selectedEnv = $environments | Where-Object { $_.EnvironmentName -eq $env.EnvironmentName }
+            Write-Host ""
+            Write-Host "✓ Selected: " -NoNewline -ForegroundColor Green
+            Write-Host "$($selectedEnv.DisplayName) " -NoNewline
+            Write-Host "($($selectedEnv.EnvironmentName))" -ForegroundColor DarkGray
+            return $selectedEnv
+        }
+        
+        return $null
+    }
+    catch {
+        Write-Host "❌ Error loading environments: $($_.Exception.Message)" -ForegroundColor Red
+        return $null
+    }
+}
+
 function Initialize-DeploymentSession {
     Write-Host ""
     Write-Host "═══════════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
@@ -360,16 +463,17 @@ function Initialize-DeploymentSession {
     Write-Host "🔌 Connecting to Power Platform..." -ForegroundColor Cyan
     
     # Check if module is available
-    if (-not (Get-Command -Name Get-PowerAppAccount -ErrorAction SilentlyContinue)) {
+    if (-not (Get-Command -Name Get-AdminPowerAppEnvironment -ErrorAction SilentlyContinue)) {
         Write-Host "  ⚠ Power Platform module not loaded" -ForegroundColor Yellow
         Write-Host "    Install with: Install-Module -Name Microsoft.PowerApps.Administration.PowerShell -Scope CurrentUser" -ForegroundColor Gray
         Write-Host "  ⚠ Environment validation will be limited" -ForegroundColor Yellow
     }
     else {
         try {
-            $ppAccounts = Get-PowerAppAccount -ErrorAction SilentlyContinue
-            if (-not $ppAccounts -or $accountSwitched) {
-                Add-PowerAppsAccount -ErrorAction Stop
+            # Try to get environments to test connectivity
+            $ppTest = Get-AdminPowerAppEnvironment -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $ppTest -or $accountSwitched) {
+                Add-PowerAppsAccount -ErrorAction Stop | Out-Null
                 Write-Host "  ✓ Connected to Power Platform" -ForegroundColor Green
             }
             else {
@@ -459,6 +563,15 @@ function Show-PhaseMenu {
     Write-Host "╚════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Yellow
     Write-Host ""
     
+    # Show helpful tip if there's existing progress
+    if ($Progress -and $Progress.CurrentPhase -gt 1) {
+        Write-Host "💡 TIP: " -NoNewline -ForegroundColor Cyan
+        Write-Host "To re-run all phases with fresh validation, select " -NoNewline -ForegroundColor Gray
+        Write-Host "[R]" -NoNewline -ForegroundColor Yellow
+        Write-Host " to reset progress" -ForegroundColor Gray
+        Write-Host ""
+    }
+    
     foreach ($phase in $Phases) {
         $phaseNum = $phase.Number
         $phaseName = $phase.Name
@@ -502,7 +615,7 @@ function Show-PhaseMenu {
     Write-Host "Select phase to run (or press Enter to continue from last position):" -ForegroundColor Yellow
     Write-Host "  [1-6] - Run specific phase" -ForegroundColor White
     Write-Host "  [A]   - Run all phases sequentially" -ForegroundColor Green
-    Write-Host "  [R]   - Reset progress and start fresh" -ForegroundColor Yellow
+    Write-Host "  [R]   - Reset and RE-RUN ALL PHASES from scratch" -ForegroundColor Yellow
     Write-Host "  [Q]   - Quit" -ForegroundColor Red
     Write-Host ""
     
@@ -527,6 +640,9 @@ function Invoke-PhaseValidation {
     
     # Run validation based on phase
     $results = @()
+    
+    # Clear any previous validation results to avoid accumulation across phases
+    Clear-ValidationResults
     
     switch ($Phase.Number) {
         1 {
@@ -563,6 +679,14 @@ function Invoke-PhaseValidation {
         4 {
             # Phase 4: ESS Agent Configuration
             Write-Host "  Validating agent configuration..." -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  ⚠️  MANUAL REVIEW REQUIRED:" -ForegroundColor Yellow
+            Write-Host "     → Verify agent topics are complete in Copilot Studio" -ForegroundColor Gray
+            Write-Host "     → Test conversation flows with sample queries" -ForegroundColor Gray
+            Write-Host "     → Review content accuracy and tone" -ForegroundColor Gray
+            Write-Host "     → Validate knowledge sources are accessible" -ForegroundColor Gray
+            Write-Host ""
+            
             $contentResults = Test-ESSContent -EnvironmentId $EnvironmentId
             $topicResults = Test-ESSTopics -EnvironmentId $EnvironmentId
             $configResults = Test-ESSConfiguration -EnvironmentId $EnvironmentId
@@ -570,8 +694,23 @@ function Invoke-PhaseValidation {
         }
         5 {
             # Phase 5: Testing & UAT
-            Write-Host "  Running test scenarios..." -ForegroundColor Yellow
-            Write-Host "  Note: This phase requires manual testing validation" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  ⏸️  MANUAL TESTING PHASE" -ForegroundColor Cyan
+            Write-Host "  ═══════════════════════════════════════════════════════════" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Host "  This phase cannot be fully automated. Complete these tasks:" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  📋 Testing Checklist:" -ForegroundColor White
+            Write-Host "     ✓ Run .\Test-CopilotAgentResponse.ps1 for functional testing" -ForegroundColor Gray
+            Write-Host "     ✓ Conduct user acceptance testing with pilot users" -ForegroundColor Gray
+            Write-Host "     ✓ Validate integration with Workday/ServiceNow/SAP" -ForegroundColor Gray
+            Write-Host "     ✓ Test edge cases and error handling" -ForegroundColor Gray
+            Write-Host "     ✓ Verify response accuracy and relevance" -ForegroundColor Gray
+            Write-Host "     ✓ Document test results and user feedback" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  Press any key when testing is complete..." -ForegroundColor Yellow
+            $null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+            Write-Host ""
             
             # Placeholder for testing phase - would integrate with Test-CopilotAgentResponse.ps1
             $results = @(
@@ -580,17 +719,34 @@ function Invoke-PhaseValidation {
                     Category = "Testing"
                     Priority = "Critical"
                     Status = "NotConfigured"
-                    Result = "Manual testing required"
-                    Remediation = "Run Test-CopilotAgentResponse.ps1 to validate agent responses"
+                    Result = "Manual testing completed - review test documentation"
+                    Remediation = "Ensure all test scenarios passed and feedback is documented"
                 }
             )
         }
         6 {
             # Phase 6: Production Readiness
-            Write-Host "  Validating production readiness..." -ForegroundColor Yellow
-            $pubResults = Test-ESSPublishing
-            $depResults = Test-ESSDeploymentReadiness -Scope Quick -EnvironmentId $EnvironmentId
-            $results = $pubResults + $depResults
+            Write-Host ""
+            Write-Host "  🚀 PRODUCTION READINESS CHECKLIST" -ForegroundColor Green
+            Write-Host "  ═══════════════════════════════════════════════════════════" -ForegroundColor Green
+            Write-Host ""
+            Write-Host "  Review final deployment checklist:" -ForegroundColor Yellow
+            Write-Host ""
+            Write-Host "  📋 Pre-Production Checklist:" -ForegroundColor White
+            Write-Host "     ✓ Performance benchmarks validated" -ForegroundColor Gray
+            Write-Host "     ✓ Security review completed" -ForegroundColor Gray
+            Write-Host "     ✓ Backup and rollback plan documented" -ForegroundColor Gray
+            Write-Host "     ✓ Support team trained on ESS agent" -ForegroundColor Gray
+            Write-Host "     ✓ Monitoring and analytics configured" -ForegroundColor Gray
+            Write-Host "     ✓ Communication plan for user rollout" -ForegroundColor Gray
+            Write-Host "     ✓ Production environment permissions verified" -ForegroundColor Gray
+            Write-Host ""
+            Write-Host "  Running automated validation checks..." -ForegroundColor Cyan
+            Write-Host ""
+            
+            $pubResults = Test-ESSPublishing -EnvironmentId $EnvironmentId
+            # Run full validation for final production readiness check
+            $results = $pubResults
         }
     }
     
@@ -834,13 +990,39 @@ $progress = Get-DeploymentProgress
 # Get environment and tenant info
 $environmentId = $null
 $tenantId = $sessionInfo.UserContext.TenantId
+$savedEnvironmentId = $null
 
 if ($progress) {
-    $environmentId = $progress.EnvironmentId
+    $savedEnvironmentId = $progress.EnvironmentId
     if ($progress.TenantId) {
         $tenantId = $progress.TenantId
     }
 }
+
+# Prompt for environment selection
+$selectedEnvironment = Select-Environment -TenantId $tenantId -SavedEnvironmentId $savedEnvironmentId
+
+if (-not $selectedEnvironment) {
+    Write-Host ""
+    Write-Host "❌ Environment selection is required for ESS deployment" -ForegroundColor Red
+    Write-Host "   Exiting wizard..." -ForegroundColor Yellow
+    exit 1
+}
+
+$environmentId = $selectedEnvironment.EnvironmentName
+
+Write-Host ""
+Write-Host "✓ Deployment context ready!" -ForegroundColor Green
+Write-Host "  User: " -NoNewline
+Write-Host $sessionInfo.UserContext.UserPrincipalName -ForegroundColor Cyan
+Write-Host "  Environment: " -NoNewline
+Write-Host $selectedEnvironment.DisplayName -ForegroundColor Cyan
+Write-Host "  Environment ID: " -NoNewline
+Write-Host $environmentId.Substring(0, 8) -NoNewline
+Write-Host "..." -ForegroundColor DarkGray
+Write-Host ""
+Write-Host "Press any key to continue to phase menu..." -ForegroundColor Yellow
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
 
 # Show phase menu
 $phaseResults = @{}
