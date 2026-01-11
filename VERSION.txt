@@ -1,7 +1,7 @@
-VERSION=1.1.1
+VERSION=1.1.2
 STATUS=stable
-RELEASE_DATE=2026-01-10
-BUILD=20260110-122352
+RELEASE_DATE=2026-01-11
+BUILD=20260111-185309
 
 # ESS Pre-flight Validator Version Information
 # This file is read by scripts to display version information
@@ -13,7 +13,7 @@ PRERELEASE=
 BUILD_METADATA=
 
 # Full version string
-FULL_VERSION=1.1.1-stable
+FULL_VERSION=1.1.2-stable
 
 # Release notes summary
 RELEASE_NOTES="Production-ready release with improved error handling and user experience"
