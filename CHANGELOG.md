@@ -4,6 +4,37 @@ All notable changes to ESS Pre-flight Validator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.2] - 2026-01-11
+
+### Added
+- Interactive environment selection to Start-ESSDeployment.ps1 (matching Start-ESSValidation.ps1 UX)
+- `Clear-ValidationResults` helper function exported from module
+- Helpful TIP shown when progress exists: prompts user to reset for fresh validation
+- Detailed manual review checklist for Phase 4 (ESS Agent Configuration)
+- Comprehensive testing checklist for Phase 5 (Testing & UAT) with user pause
+- Production readiness checklist for Phase 6 with pre-deployment verification steps
+
+### Fixed
+- **CRITICAL**: Fixed validation result accumulation bug that broke Start-ESSValidation HTML reports
+- Power Platform module detection now uses `Get-AdminPowerAppEnvironment` instead of invalid `Get-PowerAppAccount`
+- Workday/ServiceNow solution detection now uses correct syntax: `Get-AdminFlow -EnvironmentName | Where-Object`
+- Phase 6 invalid "Quick" scope parameter replaced with valid "Publishing" scope
+- Start-ESSDeployment now calls `Clear-ValidationResults` before each phase to prevent accumulation
+- Individual validation functions no longer clear `$script:ValidationResults` (prevents data loss in Full scope)
+
+### Changed
+- Reset menu option now says "[R] - Reset and RE-RUN ALL PHASES from scratch" for clarity
+- Phase 4 displays manual review requirements before running automated checks
+- Phase 5 shows detailed testing checklist and pauses for user confirmation
+- Phase 6 shows production checklist before running final automated validation
+- Improved professional communication and user guidance throughout deployment wizard
+
+### Technical Details
+- Environment selection flow: saved environment check → user confirmation → Out-GridView picker
+- Flow detection fixed: `Get-AdminFlow -EnvironmentName $envId | Where-Object { $_.DisplayName -like "*Workday*" }`
+- Validation pattern: Test-ESSDeploymentReadiness clears at start → functions accumulate → returns combined results
+- Deployment wizard pattern: Clear-ValidationResults before each phase → individual function returns isolated results
+
 ## [1.1.1] - 2026-01-10
 
 ### Fixed
