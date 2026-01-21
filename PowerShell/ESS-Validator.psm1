@@ -8,7 +8,7 @@
     configuration, and publishing readiness.
 
 .NOTES
-    Version: 1.0.0
+    Version: 1.2.0
     Author: ESS Validator Team
     
 .LINK
@@ -453,6 +453,57 @@ function Test-ESSExternalSystems {
         Add-ValidationResult -CheckpointId 'WD-001' -Category 'External Systems' -Priority 'High' -Status 'Passed' `
             -Result "Workday solution components found: $($workdaySolution.Count) flow(s)" `
             -DocumentationLink 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/workday'
+        
+        # Workday detected - run deep validation via Workday Suite
+        Write-Host "`n  📦 Workday solution detected - running extended validation..." -ForegroundColor Magenta
+        
+        # Load and run Workday environment variable validation
+        $workdaySuitePath = Join-Path $PSScriptRoot "WorkdaySuite"
+        if (Test-Path $workdaySuitePath) {
+            try {
+                # Load Workday validation functions
+                . (Join-Path $workdaySuitePath "Test-WorkdayEnvironmentVariables.ps1")
+                . (Join-Path $workdaySuitePath "Test-WorkdayConnectionReferences.ps1")
+                . (Join-Path $workdaySuitePath "Test-WorkdayFlowStatus.ps1")
+                
+                # Run environment variables check
+                $envVarResults = Test-WorkdayEnvironmentVariables -EnvironmentId $EnvironmentId
+                foreach ($result in $envVarResults) {
+                    Add-ValidationResult -CheckpointId $result.CheckpointId -Category 'Workday' `
+                        -Priority $result.Priority -Status $result.Status `
+                        -Result $result.Result -Remediation $result.Remediation `
+                        -DocumentationLink $result.DocumentationLink
+                }
+                
+                # Run connection references check
+                $connRefResults = Test-WorkdayConnectionReferences -EnvironmentId $EnvironmentId
+                foreach ($result in $connRefResults) {
+                    Add-ValidationResult -CheckpointId $result.CheckpointId -Category 'Workday' `
+                        -Priority $result.Priority -Status $result.Status `
+                        -Result $result.Result -Remediation $result.Remediation `
+                        -DocumentationLink $result.DocumentationLink
+                }
+                
+                # Run flow status check
+                $flowResults = Test-WorkdayFlowStatus -EnvironmentId $EnvironmentId
+                foreach ($result in $flowResults) {
+                    Add-ValidationResult -CheckpointId $result.CheckpointId -Category 'Workday' `
+                        -Priority $result.Priority -Status $result.Status `
+                        -Result $result.Result -Remediation $result.Remediation `
+                        -DocumentationLink $result.DocumentationLink
+                }
+                
+                Write-Host "  ✓ Workday extended validation completed" -ForegroundColor Magenta
+            }
+            catch {
+                Write-Warning "Workday suite validation encountered an error: $_"
+                Add-ValidationResult -CheckpointId 'WD-SUITE-ERR' -Category 'Workday' -Priority 'High' -Status 'Warning' `
+                    -Result "Workday suite validation error: $_" `
+                    -Remediation "Run Invoke-WorkdayValidationSuite manually for detailed diagnostics"
+            }
+        } else {
+            Write-Host "  ℹ️  Workday Suite not found at $workdaySuitePath - basic validation only" -ForegroundColor Yellow
+        }
     } else {
         Add-ValidationResult -CheckpointId 'WD-001' -Category 'External Systems' -Priority 'High' -Status 'NotConfigured' `
             -Result "Workday solution package not installed" `

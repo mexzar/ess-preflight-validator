@@ -4,6 +4,31 @@ All notable changes to ESS Pre-flight Validator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-01-21
+
+### Added
+- **NEW: Workday Validation Suite** (`PowerShell/WorkdaySuite/`)
+  - `Invoke-WorkdayValidationSuite.ps1` - Main entry point for comprehensive Workday validation
+  - `Test-WorkdayEnvironmentVariables.ps1` - Validates critical Dataverse environment variables:
+    - `EmployeeContextRequestAccountName` (CRITICAL - must be manually configured)
+    - `EmployeeContextRequestReportName` (default: "WD User Context")
+    - `EmployeeContextRequestReportInstanceName` (default: "Report2")
+  - `Test-WorkdayConnectionReferences.ps1` - Checks Power Platform connection status
+  - `Test-WorkdayFlowStatus.ps1` - Validates Power Automate flow enabled/disabled state
+  - Consolidated `Test-WorkdayConnectivity.ps1` and `Test-WorkdaySSOConnectivity.ps1` into suite
+
+### Changed
+- `Test-ESSExternalSystems` now automatically cascades into deep Workday validation when Workday solution is detected
+- Extended checkpoint IDs for Workday: WD-ENV-001, WD-ENV-002, WD-ENV-003, WD-CONN-REF-xxx, WD-FLOW-xxx
+- Module version updated to 1.2.0
+
+### Technical Details
+- Workday suite loads via dot-sourcing when Workday flows detected
+- Environment variables validated against Microsoft documentation defaults
+- Connection references checked for Connected/Error status
+- Flow status validated for Enabled state (disabled = Failed)
+- Suite provides direct links to Power Platform portal for manual verification
+
 ## [1.1.2] - 2026-01-11
 
 ### Added
