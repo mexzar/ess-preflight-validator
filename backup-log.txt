@@ -3,3 +3,4 @@
 20260110-122351 - v1.1.0 - ESS-PreFlight-Validator-v1.1.0-20260110-122351.zip
 20260111-185308 - v1.1.1 - ESS-PreFlight-Validator-v1.1.1-20260111-185308.zip
 20260121-135053 - v1.1.2 - ESS-PreFlight-Validator-v1.1.2-20260121-135053.zip
+20260121-190640 - v1.3.1 - ESS-PreFlight-Validator-v1.3.1-20260121-190640.zip

@@ -5,12 +5,22 @@
 .DESCRIPTION
     Checks the status of Workday-related connection references to ensure
     they are properly authenticated and configured.
+    
+    Supports solution-scoped validation when ScopedConnections parameter is provided.
 
 .PARAMETER EnvironmentId
     Power Platform environment ID containing the Workday solution
 
+.PARAMETER ScopedConnections
+    Optional. Pre-filtered connections from solution discovery. If provided,
+    only these connections will be validated (solution-scoped mode).
+
 .EXAMPLE
     Test-WorkdayConnectionReferences -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+
+.EXAMPLE
+    # Solution-scoped mode
+    Test-WorkdayConnectionReferences -EnvironmentId $envId -ScopedConnections $discoveredConnections
 
 .NOTES
     Connection references must be authenticated by a service account or
@@ -21,42 +31,56 @@ function Test-WorkdayConnectionReferences {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$EnvironmentId
+        [string]$EnvironmentId,
+
+        [Parameter(Mandatory = $false)]
+        [array]$ScopedConnections = $null
     )
 
     $results = @()
+    $isScopedMode = ($null -ne $ScopedConnections -and $ScopedConnections.Count -gt 0)
 
-    Write-Host "`n  🔍 Checking Workday connection references..." -ForegroundColor Cyan
+    if ($isScopedMode) {
+        Write-Host "`n  🔍 Checking Workday connections (Solution-Scoped: $($ScopedConnections.Count) connection(s))..." -ForegroundColor Cyan
+    } else {
+        Write-Host "`n  🔍 Checking Workday connection references..." -ForegroundColor Cyan
+    }
 
     try {
-        # Get all connections in the environment
-        $connections = Get-AdminPowerAppConnection -EnvironmentName $EnvironmentId -ErrorAction SilentlyContinue
+        # Use scoped connections if provided, otherwise get all
+        if ($isScopedMode) {
+            $workdayConnections = $ScopedConnections
+        } else {
+            # Get all connections in the environment
+            $connections = Get-AdminPowerAppConnection -EnvironmentName $EnvironmentId -ErrorAction SilentlyContinue
 
-        if (-not $connections) {
-            Write-Host "  ⚠️  No connections found or insufficient permissions" -ForegroundColor Yellow
-            $results += [PSCustomObject]@{
-                CheckpointId = 'WD-CONN-REF-000'
-                Category     = 'Workday'
-                Priority     = 'High'
-                Status       = 'Warning'
-                Result       = 'Unable to query connections - verify permissions'
-                Remediation  = 'Grant Power Platform Administrator role or Environment Admin permissions'
+            if (-not $connections) {
+                Write-Host "  ⚠️  No connections found or insufficient permissions" -ForegroundColor Yellow
+                $results += [PSCustomObject]@{
+                    CheckpointId = 'WD-CONN-REF-000'
+                    Category     = 'Workday'
+                    Priority     = 'High'
+                    Status       = 'Warning'
+                    Result       = 'Unable to query connections - verify permissions'
+                    Remediation  = 'Grant Power Platform Administrator role or Environment Admin permissions'
+                }
+                return $results
             }
-            return $results
-        }
 
-        # Filter for Workday-related connections
-        # Common connector names: "shared_workday", "shared_workdayhcm"
-        $workdayConnections = $connections | Where-Object { 
-            $_.ConnectorName -like "*workday*" -or 
-            $_.DisplayName -like "*Workday*"
+            # Filter for Workday-related connections
+            $workdayConnections = $connections | Where-Object { 
+                $_.ConnectorName -like "*workday*" -or 
+                $_.DisplayName -like "*Workday*"
+            }
         }
 
         if ($workdayConnections) {
             Write-Host "  ✅ Found $($workdayConnections.Count) Workday connection(s)" -ForegroundColor Green
             Write-Host ""
             
+            $connIndex = 0
             foreach ($conn in $workdayConnections) {
+                $connIndex++
                 $statusIcon = switch ($conn.ConnectionStatus) {
                     'Connected' { '✅' }
                     'Error' { '❌' }
@@ -69,22 +93,25 @@ function Test-WorkdayConnectionReferences {
                     default { 'Yellow' }
                 }
 
+                # Get primary status (first entry, or check for any Connected/Error status)
+                $primaryStatus = if ($conn.Statuses -is [array]) { $conn.Statuses[0].Status } else { $conn.Statuses.Status }
+                
                 Write-Host "    $statusIcon $($conn.DisplayName)" -ForegroundColor $statusColor
                 Write-Host "       Connector: $($conn.ConnectorName)" -ForegroundColor DarkGray
-                Write-Host "       Status: $($conn.Statuses.Status)" -ForegroundColor DarkGray
+                Write-Host "       Status: $primaryStatus" -ForegroundColor DarkGray
                 Write-Host "       Created: $($conn.CreatedTime)" -ForegroundColor DarkGray
                 Write-Host ""
 
-                $connStatus = if ($conn.Statuses.Status -eq 'Connected') { 'Passed' } 
-                              elseif ($conn.Statuses.Status -eq 'Error') { 'Failed' }
+                $connStatus = if ($primaryStatus -eq 'Connected') { 'Passed' } 
+                              elseif ($primaryStatus -eq 'Error') { 'Failed' }
                               else { 'Warning' }
 
                 $results += [PSCustomObject]@{
-                    CheckpointId      = "WD-CONN-REF-$($workdayConnections.IndexOf($conn) + 1)"
+                    CheckpointId      = "WD-CONN-REF-$connIndex"
                     Category          = 'Workday'
                     Priority          = 'High'
                     Status            = $connStatus
-                    Result            = "Connection '$($conn.DisplayName)': $($conn.Statuses.Status)"
+                    Result            = "Connection '$($conn.DisplayName)': $primaryStatus"
                     Remediation       = if ($connStatus -ne 'Passed') { 
                         'Re-authenticate the Workday connection in Power Platform > Connections'
                     } else { '' }

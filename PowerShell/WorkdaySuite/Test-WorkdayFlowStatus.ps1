@@ -8,12 +8,22 @@
     - Enabled (turned on)
     - Not in a failed/suspended state
     - Properly connected
+    
+    Supports solution-scoped validation when ScopedFlows parameter is provided.
 
 .PARAMETER EnvironmentId
     Power Platform environment ID containing the Workday solution
 
+.PARAMETER ScopedFlows
+    Optional. Pre-filtered flows from solution discovery. If provided,
+    only these flows will be validated (solution-scoped mode).
+
 .EXAMPLE
     Test-WorkdayFlowStatus -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+
+.EXAMPLE
+    # Solution-scoped mode
+    Test-WorkdayFlowStatus -EnvironmentId $envId -ScopedFlows $discoveredFlows
 
 .NOTES
     ESS Workday integration typically includes flows for:
@@ -26,35 +36,48 @@ function Test-WorkdayFlowStatus {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [string]$EnvironmentId
+        [string]$EnvironmentId,
+
+        [Parameter(Mandatory = $false)]
+        [array]$ScopedFlows = $null
     )
 
     $results = @()
+    $isScopedMode = ($null -ne $ScopedFlows -and $ScopedFlows.Count -gt 0)
 
-    Write-Host "`n  🔍 Checking Workday flow status..." -ForegroundColor Cyan
+    if ($isScopedMode) {
+        Write-Host "`n  🔍 Checking Workday flow status (Solution-Scoped: $($ScopedFlows.Count) flow(s))..." -ForegroundColor Cyan
+    } else {
+        Write-Host "`n  🔍 Checking Workday flow status..." -ForegroundColor Cyan
+    }
 
     try {
-        # Get all flows in the environment
-        $flows = Get-AdminFlow -EnvironmentName $EnvironmentId -ErrorAction SilentlyContinue
+        # Use scoped flows if provided, otherwise discover
+        if ($isScopedMode) {
+            $workdayFlows = $ScopedFlows
+        } else {
+            # Get all flows in the environment
+            $flows = Get-AdminFlow -EnvironmentName $EnvironmentId -ErrorAction SilentlyContinue
 
-        if (-not $flows) {
-            Write-Host "  ⚠️  No flows found or insufficient permissions" -ForegroundColor Yellow
-            $results += [PSCustomObject]@{
-                CheckpointId = 'WD-FLOW-000'
-                Category     = 'Workday'
-                Priority     = 'High'
-                Status       = 'Warning'
-                Result       = 'Unable to query flows - verify permissions'
-                Remediation  = 'Grant Power Platform Administrator role or Flow Admin permissions'
+            if (-not $flows) {
+                Write-Host "  ⚠️  No flows found or insufficient permissions" -ForegroundColor Yellow
+                $results += [PSCustomObject]@{
+                    CheckpointId = 'WD-FLOW-000'
+                    Category     = 'Workday'
+                    Priority     = 'High'
+                    Status       = 'Warning'
+                    Result       = 'Unable to query flows - verify permissions'
+                    Remediation  = 'Grant Power Platform Administrator role or Flow Admin permissions'
+                }
+                return $results
             }
-            return $results
-        }
 
-        # Filter for Workday-related flows
-        $workdayFlows = $flows | Where-Object { 
-            $_.DisplayName -like "*Workday*" -or 
-            $_.DisplayName -like "*WD*" -or
-            $_.DisplayName -like "*Employee Context*"
+            # Filter for Workday-related flows
+            $workdayFlows = $flows | Where-Object { 
+                $_.DisplayName -like "*Workday*" -or 
+                $_.DisplayName -like "*WD*" -or
+                $_.DisplayName -like "*Employee Context*"
+            }
         }
 
         if ($workdayFlows) {

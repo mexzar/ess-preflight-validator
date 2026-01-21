@@ -18,6 +18,10 @@
     Only show failed validation checks in the report
 .PARAMETER ShowCriticalOnly
     Only show critical/high-priority validation checks
+.PARAMETER AgentName
+    Agent name for solution-scoped validation. When provided, only validates components
+    used by that specific agent (flows, connections, env vars). This dramatically reduces
+    noise from ~500 checks to ~50 by filtering out orphaned/unrelated components.
 .PARAMETER Categories
     Filter by specific categories (comma-separated): Prerequisites,Environment,Authentication,ExternalSystems,Content,Topics,Configuration,Publishing,Deployment
 .PARAMETER Priority
@@ -25,6 +29,9 @@
 .EXAMPLE
     .\Start-ESSValidation.ps1
     Launches interactive wizard with saved profile detection
+.EXAMPLE
+    .\Start-ESSValidation.ps1 -AgentName "Employee Self-Service Demo"
+    Runs solution-scoped validation for only components used by the specified agent
 .EXAMPLE
     .\Start-ESSValidation.ps1 -SkipProfile
     Launches wizard without loading saved profiles
@@ -46,6 +53,9 @@ param(
     [switch]$NoOpenReport,
     [switch]$ShowFailedOnly,
     [switch]$ShowCriticalOnly,
+    
+    [Parameter(Mandatory=$false, HelpMessage='Agent name for solution-scoped validation. Dramatically reduces noise by validating only components used by this agent.')]
+    [string]$AgentName,
     
     [Parameter(Mandatory=$false)]
     [ValidateSet("Prerequisites", "Environment", "Authentication", "ExternalSystems", "Content", "Topics", "Configuration", "Publishing", "Deployment")]
@@ -367,28 +377,71 @@ function Select-Environment {
 
 function Get-AgentName {
     param(
-        [string]$DefaultName = "Employee Self-Service IT (Preview)Sandbox"
+        [string]$ProvidedName = $null,
+        [string]$EnvironmentId = $null
     )
     
-    Write-Host ""
-    Write-Host "🤖 ESS Agent Configuration" -ForegroundColor Cyan
-    Write-Host "   Default agent name: " -NoNewline
-    Write-Host $DefaultName -ForegroundColor Yellow
-    Write-Host ""
-    
-    $useDefault = Get-UserConfirmation "Use this agent name?" $true
-    
-    if ($useDefault) {
-        return $DefaultName
+    # If name was provided via parameter, use it
+    if (-not [string]::IsNullOrWhiteSpace($ProvidedName)) {
+        Write-Host ""
+        Write-Host "🎯 Solution-Scoped Validation Mode" -ForegroundColor Magenta
+        Write-Host "   Agent: $ProvidedName" -ForegroundColor White
+        Write-Host "   Only validating components used by this agent" -ForegroundColor DarkGray
+        return $ProvidedName
     }
     
-    $customName = Read-Host "Enter custom agent name"
+    Write-Host ""
+    Write-Host "🤖 Agent Selection" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "   Solution-scoped validation checks ONLY the components used by your agent." -ForegroundColor Gray
+    Write-Host "   This reduces noise from ~500 checks to ~50." -ForegroundColor Gray
+    Write-Host ""
     
-    if ([string]::IsNullOrWhiteSpace($customName)) {
-        return $DefaultName
+    # Build the Copilot Studio URL with environment ID
+    $copilotStudioUrl = "https://copilotstudio.microsoft.com"
+    if ($EnvironmentId) {
+        $copilotStudioUrl = "https://copilotstudio.preview.microsoft.com/environments/$EnvironmentId/bots"
     }
     
-    return $customName
+    # Show the hint BEFORE the menu so users know they can find their agent name
+    Write-Host "   💡 " -NoNewline -ForegroundColor Yellow
+    Write-Host "Find agent names at: " -NoNewline -ForegroundColor Gray
+    Write-Host $copilotStudioUrl -ForegroundColor Cyan
+    Write-Host ""
+    
+    Write-Host "   ┌─────────────────────────────────────────────────────────┐" -ForegroundColor DarkGray
+    Write-Host "   │ " -NoNewline -ForegroundColor DarkGray
+    Write-Host "[1] " -NoNewline -ForegroundColor Cyan
+    Write-Host "Enter agent name                                     " -NoNewline -ForegroundColor White
+    Write-Host "│" -ForegroundColor DarkGray
+    Write-Host "   │ " -NoNewline -ForegroundColor DarkGray
+    Write-Host "[2] " -NoNewline -ForegroundColor DarkGray
+    Write-Host "Skip (full environment scan)                         " -NoNewline -ForegroundColor DarkGray
+    Write-Host "│" -ForegroundColor DarkGray
+    Write-Host "   └─────────────────────────────────────────────────────────┘" -ForegroundColor DarkGray
+    Write-Host ""
+    
+    $choice = Read-Host "   Select option (1-2)"
+    
+    switch ($choice) {
+        "1" {
+            $customName = Read-Host "   Enter agent name"
+            if ([string]::IsNullOrWhiteSpace($customName)) {
+                Write-Host "   ⚠️  No name entered, running full scan" -ForegroundColor Yellow
+                return $null
+            }
+            Write-Host "   ✅ Using: $customName" -ForegroundColor Green
+            return $customName
+        }
+        "2" {
+            Write-Host "   ℹ️  Running full environment scan" -ForegroundColor Yellow
+            return $null
+        }
+        default {
+            Write-Host "   ℹ️  Running full environment scan" -ForegroundColor Yellow
+            return $null
+        }
+    }
 }
 
 function Show-ProgressBar {
@@ -539,8 +592,9 @@ try {
             exit 1
         }
         
-        # Get Agent Name
-        $agentName = Get-AgentName
+        # Get Agent Name (for solution-scoped validation)
+        # Pass environment ID so it can discover ESS solutions
+        $agentName = Get-AgentName -ProvidedName $AgentName -EnvironmentId $environment.EnvironmentName
         
         # Get tenant name for profile
         try {
@@ -579,22 +633,25 @@ try {
     $timestamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $reportPath = Join-Path $reportDir "ESS-Validation-$timestamp.html"
     
-    Show-ProgressBar -Percent 10 -Status "Testing prerequisites..."
-    $prereqResults = Test-ESSPrerequisites
+    Show-ProgressBar -Percent 10 -Status "Initializing validation..."
     
-    Show-ProgressBar -Percent 30 -Status "Validating environment..."
-    $envResults = Test-ESSEnvironment -EnvironmentId $environment.EnvironmentName
+    # Build validation parameters
+    $validationParams = @{
+        Scope = 'Full'
+        EnvironmentId = $environment.EnvironmentName
+        OutputFormat = 'HTML'
+        ExportPath = $reportPath
+    }
+    if ($agentName) {
+        $validationParams['AgentName'] = $agentName
+    }
     
-    Show-ProgressBar -Percent 50 -Status "Checking authentication..."
-    $authResults = Test-ESSAuthentication
+    Show-ProgressBar -Percent 30 -Status "Running comprehensive validation..."
     
-    Show-ProgressBar -Percent 70 -Status "Validating external systems..."
-    $extResults = Test-ESSExternalSystems -EnvironmentId $environment.EnvironmentName
+    # Run full validation - this handles all checks including solution-scoped filtering
+    $fullResults = Test-ESSDeploymentReadiness @validationParams
     
-    Show-ProgressBar -Percent 90 -Status "Generating comprehensive report..."
-    
-    # Run full validation and generate report
-    $fullResults = Test-ESSDeploymentReadiness -Scope Full -EnvironmentId $environment.EnvironmentName -OutputFormat HTML -ExportPath $reportPath
+    Show-ProgressBar -Percent 90 -Status "Finalizing report..."
     
     # Apply filtering if specified
     $filteredResults = $fullResults

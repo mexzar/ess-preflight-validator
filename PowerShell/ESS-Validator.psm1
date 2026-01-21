@@ -8,7 +8,7 @@
     configuration, and publishing readiness.
 
 .NOTES
-    Version: 1.2.0
+    Version: 1.3.0
     Author: ESS Validator Team
     
 .LINK
@@ -23,6 +23,9 @@
 $script:ValidationResults = @()
 $script:ValidationStartTime = $null
 $script:ValidationScope = 'Full'
+$script:AgentName = $null
+$script:DiscoveredFlows = @()
+$script:DiscoveredConnections = @()
 
 <#
 .SYNOPSIS
@@ -49,6 +52,10 @@ $script:ValidationScope = 'Full'
 
 .EXAMPLE
     Test-ESSDeploymentReadiness -Scope Prerequisites -OutputFormat JSON -ExportPath "C:\Validation\results.json"
+
+.EXAMPLE
+    Test-ESSDeploymentReadiness -AgentName "Employee Self-Service Demo" -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+    # Validates only components related to the specified agent (solution-scoped)
 #>
 function Test-ESSDeploymentReadiness {
     [CmdletBinding()]
@@ -59,6 +66,9 @@ function Test-ESSDeploymentReadiness {
 
         [Parameter()]
         [string]$EnvironmentId,
+
+        [Parameter(HelpMessage = 'Agent name for solution-scoped validation. If provided, only validates components used by this agent.')]
+        [string]$AgentName,
 
         [Parameter()]
         [ValidateSet('Console', 'JSON', 'HTML', 'CSV')]
@@ -73,9 +83,63 @@ function Test-ESSDeploymentReadiness {
         $script:ValidationStartTime = Get-Date
         $script:ValidationScope = $Scope
         $script:ValidationResults = @()
+        $script:AgentName = $AgentName
+        $script:DiscoveredFlows = @()
+        $script:DiscoveredConnections = @()
 
         # Connect to required services
         Initialize-ValidationSession
+
+        # If AgentName provided, discover solution components
+        if ($AgentName -and $EnvironmentId) {
+            Write-Host "`n🔎 Solution-Scoped Validation Mode" -ForegroundColor Magenta
+            Write-Host "   Agent: $AgentName" -ForegroundColor White
+            $discoveryResult = Get-AgentSolutionComponents -AgentName $AgentName -EnvironmentId $EnvironmentId
+            if ($discoveryResult.Success) {
+                $script:DiscoveredFlows = $discoveryResult.Flows
+                $script:DiscoveredConnections = $discoveryResult.Connections
+                Write-Host "   ✅ Found $($script:DiscoveredFlows.Count) flow(s) and $($script:DiscoveredConnections.Count) connection(s)" -ForegroundColor Green
+            } else {
+                # Agent not found - show available agents for selection
+                if ($discoveryResult.AvailableAgents -and $discoveryResult.AvailableAgents.Count -gt 0) {
+                    Write-Host "`n   ⚠️  Agent '$AgentName' not found in flows" -ForegroundColor Yellow
+                    Write-Host "   We found these agent patterns in the environment:" -ForegroundColor White
+                    Write-Host ""
+                    
+                    $index = 1
+                    foreach ($agent in $discoveryResult.AvailableAgents) {
+                        Write-Host "   [$index] $($agent.Name)" -NoNewline -ForegroundColor Cyan
+                        Write-Host " ($($agent.FlowCount) flows)" -ForegroundColor DarkGray
+                        $index++
+                    }
+                    Write-Host "   [$index] Skip - run full environment scan" -ForegroundColor DarkGray
+                    Write-Host ""
+                    
+                    $selection = Read-Host "   Select an agent (1-$index)"
+                    $selectedIndex = 0
+                    
+                    if ([int]::TryParse($selection, [ref]$selectedIndex) -and $selectedIndex -ge 1 -and $selectedIndex -le $discoveryResult.AvailableAgents.Count) {
+                        $selectedAgent = $discoveryResult.AvailableAgents[$selectedIndex - 1]
+                        Write-Host "   ✅ Using: $($selectedAgent.Name)" -ForegroundColor Green
+                        
+                        # Re-run discovery with selected agent
+                        $discoveryResult = Get-AgentSolutionComponents -AgentName $selectedAgent.Name -EnvironmentId $EnvironmentId
+                        if ($discoveryResult.Success) {
+                            $script:AgentName = $selectedAgent.Name
+                            $script:DiscoveredFlows = $discoveryResult.Flows
+                            $script:DiscoveredConnections = $discoveryResult.Connections
+                            Write-Host "   ✅ Found $($script:DiscoveredFlows.Count) flow(s) and $($script:DiscoveredConnections.Count) connection(s)" -ForegroundColor Green
+                        }
+                    } else {
+                        Write-Host "   ℹ️  Running full environment scan" -ForegroundColor Yellow
+                        $script:AgentName = $null
+                    }
+                } else {
+                    Write-Host "   ⚠️  Agent discovery failed - running full environment scan" -ForegroundColor Yellow
+                    $script:AgentName = $null  # Fall back to full scan
+                }
+            }
+        }
     }
 
     process {
@@ -373,9 +437,44 @@ function Test-ESSAuthentication {
         Write-Verbose "Checking SSO configuration..."
         $conditionalAccessPolicies = Get-MgIdentityConditionalAccessPolicy -All -ErrorAction SilentlyContinue
         
-        if ($conditionalAccessPolicies) {
+        if ($conditionalAccessPolicies -and $conditionalAccessPolicies.Count -gt 0) {
+            # Show policy details
+            Write-Host ""
+            Write-Host "  📋 Conditional Access Policies:" -ForegroundColor Cyan
+            
+            $enabledPolicies = $conditionalAccessPolicies | Where-Object { $_.State -eq 'enabled' }
+            $reportOnlyPolicies = $conditionalAccessPolicies | Where-Object { $_.State -eq 'enabledForReportingButNotEnforced' }
+            $disabledPolicies = $conditionalAccessPolicies | Where-Object { $_.State -eq 'disabled' }
+            
+            Write-Host "     Total: $($conditionalAccessPolicies.Count) | " -NoNewline -ForegroundColor White
+            Write-Host "Enabled: $($enabledPolicies.Count) " -NoNewline -ForegroundColor Green
+            Write-Host "| Report-only: $($reportOnlyPolicies.Count) " -NoNewline -ForegroundColor Yellow
+            Write-Host "| Disabled: $($disabledPolicies.Count)" -ForegroundColor DarkGray
+            Write-Host ""
+            
+            # Show enabled policies (most relevant)
+            if ($enabledPolicies.Count -gt 0) {
+                foreach ($policy in $enabledPolicies | Select-Object -First 5) {
+                    Write-Host "     ✅ " -NoNewline -ForegroundColor Green
+                    Write-Host $policy.DisplayName -ForegroundColor White
+                }
+                if ($enabledPolicies.Count -gt 5) {
+                    Write-Host "     ... and $($enabledPolicies.Count - 5) more enabled policies" -ForegroundColor DarkGray
+                }
+            }
+            
+            # Show report-only policies (worth noting)
+            if ($reportOnlyPolicies.Count -gt 0 -and $enabledPolicies.Count -le 3) {
+                foreach ($policy in $reportOnlyPolicies | Select-Object -First 3) {
+                    Write-Host "     🔍 " -NoNewline -ForegroundColor Yellow
+                    Write-Host "$($policy.DisplayName) " -NoNewline -ForegroundColor White
+                    Write-Host "(report-only)" -ForegroundColor DarkGray
+                }
+            }
+            Write-Host ""
+            
             Add-ValidationResult -CheckpointId 'AUTH-002' -Category 'Authentication' -Priority 'High' -Status 'Passed' `
-                -Result "Conditional Access policies configured: $($conditionalAccessPolicies.Count) policy/policies found" `
+                -Result "Conditional Access policies configured: $($enabledPolicies.Count) enabled, $($reportOnlyPolicies.Count) report-only" `
                 -DocumentationLink 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/prerequisites#identity-authentication-and-single-sign-on-sso'
         } else {
             Add-ValidationResult -CheckpointId 'AUTH-002' -Category 'Authentication' -Priority 'High' -Status 'Warning' `
@@ -430,13 +529,34 @@ function Test-ESSExternalSystems {
 
     # Check for SAP SuccessFactors solution
     Write-Verbose "Checking SAP SuccessFactors solution package..."
-    $sapSolution = Get-AdminPowerAppEnvironment -EnvironmentName $EnvironmentId | 
-        Get-AdminFlow -Filter "contains(displayName, 'SAP') or contains(displayName, 'SuccessFactors')"
     
-    if ($sapSolution) {
+    # Use solution-scoped flows if available
+    if ($script:AgentName -and $script:DiscoveredFlows.Count -gt 0) {
+        $sapSolution = $script:DiscoveredFlows | Where-Object { 
+            $_.DisplayName -like "*SAP*" -or $_.DisplayName -like "*SuccessFactors*" 
+        }
+    } else {
+        $sapSolution = Get-AdminFlow -EnvironmentName $EnvironmentId | 
+            Where-Object { $_.DisplayName -like "*SAP*" -or $_.DisplayName -like "*SuccessFactors*" }
+    }
+    
+    if ($sapSolution -and $sapSolution.Count -gt 0) {
+        $scopeLabel = if ($script:AgentName) { " (solution-scoped)" } else { "" }
         Add-ValidationResult -CheckpointId 'SAP-001' -Category 'External Systems' -Priority 'High' -Status 'Passed' `
-            -Result "SAP SuccessFactors solution components found: $($sapSolution.Count) flow(s)" `
+            -Result "SAP SuccessFactors solution components found: $($sapSolution.Count) flow(s)$scopeLabel" `
             -DocumentationLink 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/sap-successfactors'
+        
+        # List SAP flows
+        Write-Host ""
+        Write-Host "  📋 SAP SuccessFactors Flows:" -ForegroundColor Cyan
+        foreach ($flow in $sapSolution | Select-Object -First 8) {
+            $state = if ($flow.Enabled -eq $true -or $flow.Properties.state -eq 'Started') { "✅" } else { "⚠️" }
+            Write-Host "     $state $($flow.DisplayName)" -ForegroundColor White
+        }
+        if ($sapSolution.Count -gt 8) {
+            Write-Host "     ... and $($sapSolution.Count - 8) more" -ForegroundColor DarkGray
+        }
+        Write-Host ""
     } else {
         Add-ValidationResult -CheckpointId 'SAP-001' -Category 'External Systems' -Priority 'High' -Status 'NotConfigured' `
             -Result "SAP SuccessFactors solution package not installed" `
@@ -446,16 +566,25 @@ function Test-ESSExternalSystems {
 
     # Check for Workday solution
     Write-Verbose "Checking Workday solution package..."
-    $workdaySolution = Get-AdminFlow -EnvironmentName $EnvironmentId | 
-        Where-Object { $_.DisplayName -like "*Workday*" }
+    
+    # Use solution-scoped flows if available, otherwise get all Workday flows
+    if ($script:AgentName -and $script:DiscoveredFlows.Count -gt 0) {
+        $workdaySolution = $script:DiscoveredFlows | Where-Object { $_.DisplayName -like "*Workday*" }
+        Write-Verbose "Solution-scoped mode: Found $($workdaySolution.Count) Workday flows"
+    } else {
+        $workdaySolution = Get-AdminFlow -EnvironmentName $EnvironmentId | 
+            Where-Object { $_.DisplayName -like "*Workday*" }
+    }
     
     if ($workdaySolution) {
+        $scopeLabel = if ($script:AgentName) { " (solution-scoped)" } else { "" }
         Add-ValidationResult -CheckpointId 'WD-001' -Category 'External Systems' -Priority 'High' -Status 'Passed' `
-            -Result "Workday solution components found: $($workdaySolution.Count) flow(s)" `
+            -Result "Workday solution components found: $($workdaySolution.Count) flow(s)$scopeLabel" `
             -DocumentationLink 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/workday'
         
         # Workday detected - run deep validation via Workday Suite
-        Write-Host "`n  📦 Workday solution detected - running extended validation..." -ForegroundColor Magenta
+        $validationMode = if ($script:AgentName) { "solution-scoped" } else { "full environment" }
+        Write-Host "`n  📦 Workday solution detected - running $validationMode validation..." -ForegroundColor Magenta
         
         # Load and run Workday environment variable validation
         $workdaySuitePath = Join-Path $PSScriptRoot "WorkdaySuite"
@@ -475,8 +604,15 @@ function Test-ESSExternalSystems {
                         -DocumentationLink $result.DocumentationLink
                 }
                 
-                # Run connection references check
-                $connRefResults = Test-WorkdayConnectionReferences -EnvironmentId $EnvironmentId
+                # Run connection references check (pass scoped connections if available)
+                $scopedConnections = if ($script:AgentName -and $script:DiscoveredConnections.Count -gt 0) {
+                    # Filter to Workday connections only from discovered set
+                    $script:DiscoveredConnections | Where-Object { 
+                        $_.ConnectorName -like "*workday*" -or $_.DisplayName -like "*Workday*" 
+                    }
+                } else { $null }
+                
+                $connRefResults = Test-WorkdayConnectionReferences -EnvironmentId $EnvironmentId -ScopedConnections $scopedConnections
                 foreach ($result in $connRefResults) {
                     Add-ValidationResult -CheckpointId $result.CheckpointId -Category 'Workday' `
                         -Priority $result.Priority -Status $result.Status `
@@ -484,8 +620,9 @@ function Test-ESSExternalSystems {
                         -DocumentationLink $result.DocumentationLink
                 }
                 
-                # Run flow status check
-                $flowResults = Test-WorkdayFlowStatus -EnvironmentId $EnvironmentId
+                # Run flow status check (pass scoped flows if available)
+                $scopedFlows = if ($script:AgentName -and $workdaySolution) { $workdaySolution } else { $null }
+                $flowResults = Test-WorkdayFlowStatus -EnvironmentId $EnvironmentId -ScopedFlows $scopedFlows
                 foreach ($result in $flowResults) {
                     Add-ValidationResult -CheckpointId $result.CheckpointId -Category 'Workday' `
                         -Priority $result.Priority -Status $result.Status `
@@ -513,13 +650,60 @@ function Test-ESSExternalSystems {
 
     # Check for ServiceNow solution
     Write-Verbose "Checking ServiceNow solution package..."
-    $serviceNowSolution = Get-AdminFlow -EnvironmentName $EnvironmentId | 
-        Where-Object { $_.DisplayName -like "*ServiceNow*" }
     
-    if ($serviceNowSolution) {
+    # Use solution-scoped flows if available
+    if ($script:AgentName -and $script:DiscoveredFlows.Count -gt 0) {
+        $serviceNowSolution = $script:DiscoveredFlows | Where-Object { $_.DisplayName -like "*ServiceNow*" }
+    } else {
+        $serviceNowSolution = Get-AdminFlow -EnvironmentName $EnvironmentId | 
+            Where-Object { $_.DisplayName -like "*ServiceNow*" }
+    }
+    
+    if ($serviceNowSolution -and $serviceNowSolution.Count -gt 0) {
+        $scopeLabel = if ($script:AgentName) { " (solution-scoped)" } else { "" }
         Add-ValidationResult -CheckpointId 'SN-001' -Category 'External Systems' -Priority 'High' -Status 'Passed' `
-            -Result "ServiceNow solution components found: $($serviceNowSolution.Count) flow(s)" `
+            -Result "ServiceNow solution components found: $($serviceNowSolution.Count) flow(s)$scopeLabel" `
             -DocumentationLink 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/servicenow'
+        
+        # List ServiceNow flows
+        Write-Host ""
+        Write-Host "  📋 ServiceNow Flows:" -ForegroundColor Cyan
+        
+        # Group by type (HRSD vs ITSM)
+        $hrsdFlows = $serviceNowSolution | Where-Object { $_.DisplayName -like "*HRSD*" }
+        $itsmFlows = $serviceNowSolution | Where-Object { $_.DisplayName -like "*ITSM*" }
+        $otherFlows = $serviceNowSolution | Where-Object { $_.DisplayName -notlike "*HRSD*" -and $_.DisplayName -notlike "*ITSM*" }
+        
+        if ($hrsdFlows.Count -gt 0) {
+            Write-Host "     HRSD (HR Service Delivery): $($hrsdFlows.Count) flow(s)" -ForegroundColor White
+            foreach ($flow in $hrsdFlows | Select-Object -First 5) {
+                $state = if ($flow.Enabled -eq $true -or $flow.Properties.state -eq 'Started') { "✅" } else { "⚠️" }
+                Write-Host "       $state $($flow.DisplayName)" -ForegroundColor Gray
+            }
+            if ($hrsdFlows.Count -gt 5) {
+                Write-Host "       ... and $($hrsdFlows.Count - 5) more HRSD flows" -ForegroundColor DarkGray
+            }
+        }
+        
+        if ($itsmFlows.Count -gt 0) {
+            Write-Host "     ITSM (IT Service Management): $($itsmFlows.Count) flow(s)" -ForegroundColor White
+            foreach ($flow in $itsmFlows | Select-Object -First 5) {
+                $state = if ($flow.Enabled -eq $true -or $flow.Properties.state -eq 'Started') { "✅" } else { "⚠️" }
+                Write-Host "       $state $($flow.DisplayName)" -ForegroundColor Gray
+            }
+            if ($itsmFlows.Count -gt 5) {
+                Write-Host "       ... and $($itsmFlows.Count - 5) more ITSM flows" -ForegroundColor DarkGray
+            }
+        }
+        
+        if ($otherFlows.Count -gt 0) {
+            Write-Host "     Other: $($otherFlows.Count) flow(s)" -ForegroundColor White
+            foreach ($flow in $otherFlows | Select-Object -First 3) {
+                $state = if ($flow.Enabled -eq $true -or $flow.Properties.state -eq 'Started') { "✅" } else { "⚠️" }
+                Write-Host "       $state $($flow.DisplayName)" -ForegroundColor Gray
+            }
+        }
+        Write-Host ""
     } else {
         Add-ValidationResult -CheckpointId 'SN-001' -Category 'External Systems' -Priority 'High' -Status 'NotConfigured' `
             -Result "ServiceNow solution package not installed" `
@@ -955,6 +1139,175 @@ function Initialize-ValidationSession {
     }
 }
 
+<#
+.SYNOPSIS
+    Discovers solution components for a given agent name
+
+.DESCRIPTION
+    Finds flows and connections used by an ESS agent by matching flow name patterns.
+    Returns only the components relevant to that agent's solution.
+
+.PARAMETER AgentName
+    The display name of the Copilot agent (e.g., "Employee Self-Service Demo")
+
+.PARAMETER EnvironmentId
+    Power Platform environment ID
+
+.NOTES
+    This function uses pattern matching to find ESS-related flows.
+    It does NOT require direct Dataverse API access.
+#>
+function Get-AgentSolutionComponents {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$AgentName,
+
+        [Parameter(Mandatory = $true)]
+        [string]$EnvironmentId
+    )
+
+    Write-Verbose "Discovering solution components for agent: $AgentName"
+
+    try {
+        # Get all flows in the environment
+        $allFlows = Get-AdminFlow -EnvironmentName $EnvironmentId -ErrorAction SilentlyContinue
+        
+        if (-not $allFlows) {
+            Write-Warning "Unable to retrieve flows from environment"
+            return [PSCustomObject]@{
+                Success = $false
+                Flows = @()
+                Connections = @()
+                AvailableAgents = @()
+                Message = "Unable to retrieve flows"
+            }
+        }
+
+        # First, discover all agent/project patterns from flow names
+        $agentPatterns = @{}
+        foreach ($flow in $allFlows) {
+            $name = $flow.DisplayName
+            # Match patterns like "ESS - Workday - Get Worker" or "HR Bot - ServiceNow - Ticket"
+            if ($name -match '^([^-]+)\s*-') {
+                $prefix = $Matches[1].Trim()
+                # Filter out generic prefixes
+                if ($prefix -notin @('Test', 'Demo', 'Copy', 'Backup', 'Old', 'New', 'My', 'Sample', 'Untitled')) {
+                    if (-not $agentPatterns.ContainsKey($prefix)) {
+                        $agentPatterns[$prefix] = @{
+                            Name = $prefix
+                            FlowCount = 0
+                            Flows = @()
+                        }
+                    }
+                    $agentPatterns[$prefix].FlowCount++
+                    $agentPatterns[$prefix].Flows += $flow
+                }
+            }
+        }
+
+        # Get agents with 2+ flows (likely real agents, not one-offs)
+        $availableAgents = $agentPatterns.Values | 
+            Where-Object { $_.FlowCount -ge 2 } |
+            Sort-Object FlowCount -Descending |
+            Select-Object -First 10
+
+        # Try to match the provided agent name
+        $matchedFlows = @()
+        
+        # Method 1: Exact prefix match (e.g., "ESS" matches "ESS - Workday - Get Worker")
+        if ($agentPatterns.ContainsKey($AgentName)) {
+            $matchedFlows = $agentPatterns[$AgentName].Flows
+        }
+        
+        # Method 2: Partial match in flow names (e.g., "Employee Self-Service" matches flows containing that text)
+        if ($matchedFlows.Count -eq 0) {
+            $matchedFlows = @($allFlows | Where-Object { $_.DisplayName -like "*$AgentName*" })
+        }
+
+        # Method 3: For ESS-related agent names, ALWAYS include Workday/ServiceNow/SAP flows
+        # These flows are typically linked to the agent but don't contain the agent name
+        if ($AgentName -match 'ESS|Employee|Self.?Service|HR|Demo') {
+            $essPatterns = @("Workday*", "Workday", "ServiceNow*", "SAP*", "*ESS*", "*Employee*Self*")
+            foreach ($pattern in $essPatterns) {
+                $matched = @($allFlows | Where-Object { $_.DisplayName -like $pattern })
+                if ($matched) {
+                    $matchedFlows += $matched
+                }
+            }
+            $matchedFlows = @($matchedFlows | Select-Object -Unique -Property *)
+        }
+
+        # If no flows found, return available agents for user selection
+        if ($matchedFlows.Count -eq 0) {
+            return [PSCustomObject]@{
+                Success = $false
+                Flows = @()
+                Connections = @()
+                AvailableAgents = $availableAgents
+                Message = "Agent '$AgentName' not found. $($availableAgents.Count) agents available."
+            }
+        }
+
+        Write-Verbose "Found $($matchedFlows.Count) flows for agent '$AgentName'"
+
+        # Get connections and filter to those used by matched flows
+        $allConnections = Get-AdminPowerAppConnection -EnvironmentName $EnvironmentId -ErrorAction SilentlyContinue
+        
+        # Determine connector types from matched flows
+        $connectorTypes = @()
+        foreach ($flow in $matchedFlows) {
+            $name = $flow.DisplayName.ToLower()
+            if ($name -match 'workday') { $connectorTypes += '*workday*' }
+            if ($name -match 'servicenow') { $connectorTypes += '*servicenow*' }
+            if ($name -match 'sap|successfactors') { $connectorTypes += '*sap*'; $connectorTypes += '*successfactors*' }
+        }
+        $connectorTypes = $connectorTypes | Select-Object -Unique
+        
+        # If no specific connectors detected, use common ESS connectors
+        if ($connectorTypes.Count -eq 0) {
+            $connectorTypes = @('*workday*', '*servicenow*', '*sap*', '*successfactors*')
+        }
+
+        # Filter connections
+        $matchedConnections = @()
+        foreach ($pattern in $connectorTypes) {
+            $matched = $allConnections | Where-Object { 
+                $_.ConnectorName -like $pattern -or $_.DisplayName -like $pattern 
+            }
+            $matchedConnections += $matched
+        }
+        $matchedConnections = $matchedConnections | Select-Object -Unique
+        
+        # Get active connections
+        $activeConnections = $matchedConnections | Where-Object {
+            $status = if ($_.Statuses -is [array]) { $_.Statuses[0].Status } else { $_.Statuses.Status }
+            $status -eq 'Connected'
+        }
+
+        Write-Verbose "Found $($activeConnections.Count) active connections for agent"
+
+        return [PSCustomObject]@{
+            Success = $true
+            Flows = $matchedFlows
+            Connections = $activeConnections
+            AllConnections = $matchedConnections
+            AvailableAgents = $availableAgents
+            Message = "Found $($matchedFlows.Count) flows and $($activeConnections.Count) active connections"
+        }
+    }
+    catch {
+        Write-Warning "Solution discovery failed: $_"
+        return [PSCustomObject]@{
+            Success = $false
+            Flows = @()
+            Connections = @()
+            AvailableAgents = @()
+            Message = "Discovery error: $_"
+        }
+    }
+}
+
 # Export module members
 Export-ModuleMember -Function @(
     'Test-ESSDeploymentReadiness',
@@ -966,6 +1319,7 @@ Export-ModuleMember -Function @(
     'Test-ESSTopics',
     'Test-ESSConfiguration',
     'Test-ESSPublishing',
-    'Clear-ValidationResults'
+    'Clear-ValidationResults',
+    'Get-AgentSolutionComponents'
 )
 

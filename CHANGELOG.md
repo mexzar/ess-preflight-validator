@@ -4,6 +4,86 @@ All notable changes to ESS Pre-flight Validator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.1] - 2026-01-21
+
+### Added
+- **Simplified Agent Selection UX** in `Start-ESSValidation.ps1`
+  - Removed confusing device code authentication flow
+  - Shows Copilot Studio URL hint so users can easily find their agent names
+  - Clean 2-option menu: Enter agent name or Skip (full validation)
+  
+- **Enhanced Conditional Access Policy Output**
+  - Now lists actual policy names instead of just count
+  - Shows CA-enabled, MFA-required, and compliant device policies separately
+  - Example: `CA Policies: PolicyName1, PolicyName2, PolicyName3`
+
+- **Enhanced ServiceNow Flow Listing**
+  - Groups flows by HRSD (HR Service Delivery) and ITSM (IT Service Management)
+  - Shows categorized flow names for easier identification
+  - Example: `HRSD Flows: Get HR Cases, Create HR Ticket...`
+
+- **Enhanced SAP SuccessFactors Flow Listing**
+  - Groups flows by category (User Data, Org Chart, etc.)
+  - Ready to display when SAP flows exist in environment
+
+- **Standalone WorkdaySuite Execution**
+  - All WorkdaySuite tools can run standalone via dot-sourcing
+  - Example: `. .\Test-WorkdayConnectionReferences.ps1; Test-WorkdayConnectionReferences -EnvironmentId "env-id"`
+
+### Fixed
+- **Flow Matching Bug** - Now correctly finds both "Workday" and "Workday Get User Context" flows
+  - Cause: Previous logic skipped ESS patterns when any Workday flow was found
+  - Fix: Always includes ESS-related patterns for ESS agent names
+  
+- **Removed Hardcoded Default Agent Name**
+  - Previous: Defaulted to "Employee Self-Service Agent"
+  - Fix: No default - customers rename agents, so we prompt for actual name
+
+### Changed
+- Agent selection simplified from 4 options to 2 options
+- Copilot Studio URL displayed as hint: `https://copilotstudio.preview.microsoft.com/environments/{envId}/bots`
+- Module version updated to 1.3.1
+
+### Technical Details
+- `Get-AgentName` function rewritten for simplicity
+- Flow discovery pattern matching improved for accuracy
+- CA policy listing uses `$policy.DisplayName` from Graph API response
+- ServiceNow/SAP flows categorized using name pattern matching
+
+## [1.3.0] - 2026-01-21
+
+### Added
+- **NEW: Solution-Scoped Validation Mode** - Dramatically reduces noise by validating only components relevant to your agent
+  - New `-AgentName` parameter on `Test-ESSDeploymentReadiness` 
+  - Example: `Test-ESSDeploymentReadiness -AgentName "Employee Self-Service Demo" -EnvironmentId $envId`
+  - Auto-discovers agent's flows, connections, and env vars via pattern matching
+  - Reduces check count from 467 → ~50 (for typical ESS deployment)
+  
+- **NEW: `Test-AgentDiscovery.ps1`** - Standalone script to test agent/solution component discovery
+  - Useful for verifying what components will be validated before running full validation
+  - Discovers ESS-related flows by name patterns (Workday*, ServiceNow*, SAP*, ESS*)
+  - Identifies active vs orphaned connections
+
+- **NEW: `Get-AgentSolutionComponents` function** - Exported helper for programmatic solution discovery
+
+### Fixed
+- **"Error Error Error Error" display bug** in Workday connection status
+  - Cause: `$conn.Statuses` is an array, was printing all status entries
+  - Fix: Now extracts `$conn.Statuses[0].Status` for primary status display
+  - Affected file: `WorkdaySuite/Test-WorkdayConnectionReferences.ps1`
+
+### Changed
+- WorkdaySuite scripts now accept `-ScopedConnections` and `-ScopedFlows` parameters
+- Solution-scoped mode shows "(Solution-Scoped: N connection(s))" in output
+- Validation summary now indicates when running in scoped mode
+- Module version updated to 1.3.0
+
+### Technical Details
+- Solution discovery uses flow name pattern matching (no Dataverse API required)
+- ESS flow patterns: `Workday*`, `ServiceNow*`, `SAP*SuccessFactors*`, `*ESS*`, `*Employee Self*`
+- Fallback: If agent discovery fails, validation reverts to full environment scan with warning
+- Connection filtering: Solution-scoped mode only validates Connected (active) connections
+
 ## [1.2.0] - 2026-01-21
 
 ### Added

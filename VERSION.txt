@@ -1,22 +1,22 @@
-VERSION=1.2.0
+VERSION=1.3.1
 STATUS=stable
 RELEASE_DATE=2026-01-21
-BUILD=20260121-135124
+BUILD=20260121-180000
 
 # ESS Pre-flight Validator Version Information
 # This file is read by scripts to display version information
 
 MAJOR=1
-MINOR=1
-PATCH=0
+MINOR=3
+PATCH=1
 PRERELEASE=
 BUILD_METADATA=
 
 # Full version string
-FULL_VERSION=1.2.0-stable
+FULL_VERSION=1.3.1-stable
 
 # Release notes summary
-RELEASE_NOTES="Production-ready release with improved error handling and user experience"
+RELEASE_NOTES="Enhanced UX with simplified agent selection, improved output formatting for CA policies and ServiceNow/SAP flows"
 
 # Git information (populated by build script)
 GIT_COMMIT=
