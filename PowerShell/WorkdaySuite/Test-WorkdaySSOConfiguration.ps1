@@ -708,5 +708,5 @@ Microsoft Docs: https://learn.microsoft.com/en-us/copilot/microsoft-365/employee
     return $results
 }
 
-# Export for module use
-Export-ModuleMember -Function Test-WorkdaySSOConfiguration -ErrorAction SilentlyContinue
+# Export for module use (silently ignore when dot-sourced)
+try { Export-ModuleMember -Function Test-WorkdaySSOConfiguration } catch { }
