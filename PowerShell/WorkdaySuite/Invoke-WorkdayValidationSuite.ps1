@@ -9,12 +9,19 @@
     - SSO/OAuth configuration
     - Connection references status
     - Power Automate flow status
+    - SSO security domain diagnostics (optional)
 
 .PARAMETER EnvironmentId
     Power Platform environment ID containing the Workday solution
 
 .PARAMETER SkipConnectivityTest
     Skip the interactive connectivity test (useful for automated runs)
+
+.PARAMETER IncludeSSODiagnostics
+    Include deep SSO configuration analysis with security domain checklist
+
+.PARAMETER GenerateChecklist
+    Export Workday Admin checklist for security domain permissions
 
 .PARAMETER Credential
     PSCredential for Workday ISU account. If not provided, will prompt interactively.
@@ -23,10 +30,13 @@
     Invoke-WorkdayValidationSuite -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
 
 .EXAMPLE
-    Invoke-WorkdayValidationSuite -EnvironmentId "c3446975-..." -SkipConnectivityTest
+    Invoke-WorkdayValidationSuite -EnvironmentId "c3446975-..." -IncludeSSODiagnostics
+
+.EXAMPLE
+    Invoke-WorkdayValidationSuite -EnvironmentId "c3446975-..." -IncludeSSODiagnostics -GenerateChecklist
 
 .NOTES
-    Version: 1.2.0
+    Version: 1.3.0
     Part of ESS Pre-flight Validator
     Documentation: https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/workday
 #>
@@ -38,6 +48,12 @@ param(
 
     [Parameter()]
     [switch]$SkipConnectivityTest,
+
+    [Parameter()]
+    [switch]$IncludeSSODiagnostics,
+
+    [Parameter()]
+    [switch]$GenerateChecklist,
 
     [Parameter()]
     [System.Management.Automation.PSCredential]$Credential
@@ -55,6 +71,7 @@ if (-not (Get-Command Add-ValidationResult -ErrorAction SilentlyContinue)) {
 . (Join-Path $PSScriptRoot "Test-WorkdayEnvironmentVariables.ps1")
 . (Join-Path $PSScriptRoot "Test-WorkdayConnectionReferences.ps1")
 . (Join-Path $PSScriptRoot "Test-WorkdayFlowStatus.ps1")
+. (Join-Path $PSScriptRoot "Test-WorkdaySSOConfiguration.ps1")
 
 function Invoke-WorkdayValidationSuite {
     [CmdletBinding()]
@@ -66,6 +83,12 @@ function Invoke-WorkdayValidationSuite {
         [switch]$SkipConnectivityTest,
 
         [Parameter()]
+        [switch]$IncludeSSODiagnostics,
+
+        [Parameter()]
+        [switch]$GenerateChecklist,
+
+        [Parameter()]
         [System.Management.Automation.PSCredential]$Credential
     )
 
@@ -74,16 +97,23 @@ function Invoke-WorkdayValidationSuite {
     Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Magenta
     Write-Host ""
     Write-Host "  Environment: $EnvironmentId" -ForegroundColor Cyan
+    if ($IncludeSSODiagnostics) {
+        Write-Host "  Mode: Full Validation + SSO Diagnostics 🔐" -ForegroundColor Yellow
+    }
     Write-Host ""
 
     $suiteResults = @()
     $suiteStartTime = Get-Date
+    
+    # Determine step count based on options
+    $totalSteps = 4
+    if ($IncludeSSODiagnostics) { $totalSteps = 5 }
 
     # ═══════════════════════════════════════════════════════════════════
     # Step 1: Environment Variables Validation
     # ═══════════════════════════════════════════════════════════════════
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
-    Write-Host "  📋 Step 1/4: Environment Variables" -ForegroundColor Cyan
+    Write-Host "  📋 Step 1/$totalSteps`: Environment Variables" -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
     
     $envVarResults = Test-WorkdayEnvironmentVariables -EnvironmentId $EnvironmentId
@@ -93,7 +123,7 @@ function Invoke-WorkdayValidationSuite {
     # Step 2: Connection References Validation
     # ═══════════════════════════════════════════════════════════════════
     Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
-    Write-Host "  🔗 Step 2/4: Connection References" -ForegroundColor Cyan
+    Write-Host "  🔗 Step 2/$totalSteps`: Connection References" -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
     
     $connRefResults = Test-WorkdayConnectionReferences -EnvironmentId $EnvironmentId
@@ -103,7 +133,7 @@ function Invoke-WorkdayValidationSuite {
     # Step 3: Flow Status Validation
     # ═══════════════════════════════════════════════════════════════════
     Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
-    Write-Host "  ⚡ Step 3/4: Flow Status" -ForegroundColor Cyan
+    Write-Host "  ⚡ Step 3/$totalSteps`: Flow Status" -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
     
     $flowResults = Test-WorkdayFlowStatus -EnvironmentId $EnvironmentId
@@ -112,8 +142,9 @@ function Invoke-WorkdayValidationSuite {
     # ═══════════════════════════════════════════════════════════════════
     # Step 4: Connectivity Test (Optional)
     # ═══════════════════════════════════════════════════════════════════
+    $connectivityStepNum = if ($IncludeSSODiagnostics) { 4 } else { 4 }
     Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
-    Write-Host "  🌐 Step 4/4: Workday Connectivity" -ForegroundColor Cyan
+    Write-Host "  🌐 Step $connectivityStepNum/$totalSteps`: Workday Connectivity" -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
 
     if ($SkipConnectivityTest) {
@@ -144,6 +175,27 @@ function Invoke-WorkdayValidationSuite {
         } else {
             Write-Host "  ⏭️  Connectivity test skipped by user" -ForegroundColor Yellow
         }
+    }
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Step 5: SSO Configuration Diagnostics (Optional)
+    # ═══════════════════════════════════════════════════════════════════
+    if ($IncludeSSODiagnostics) {
+        Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+        Write-Host "  🔐 Step 5/$totalSteps`: SSO Configuration & Security Domains" -ForegroundColor Cyan
+        Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+        
+        $ssoParams = @{
+            EnvironmentId = $EnvironmentId
+        }
+        
+        if ($GenerateChecklist) {
+            $ssoParams.GenerateChecklist = $true
+            $ssoParams.OutputPath = $PSScriptRoot
+        }
+        
+        $ssoResults = Test-WorkdaySSOConfiguration @ssoParams
+        $suiteResults += $ssoResults
     }
 
     # ═══════════════════════════════════════════════════════════════════
@@ -183,5 +235,13 @@ function Invoke-WorkdayValidationSuite {
 
 # Run if called directly
 if ($MyInvocation.InvocationName -ne '.') {
-    Invoke-WorkdayValidationSuite -EnvironmentId $EnvironmentId -SkipConnectivityTest:$SkipConnectivityTest -Credential $Credential
+    $params = @{
+        EnvironmentId = $EnvironmentId
+        SkipConnectivityTest = $SkipConnectivityTest
+    }
+    if ($IncludeSSODiagnostics) { $params.IncludeSSODiagnostics = $true }
+    if ($GenerateChecklist) { $params.GenerateChecklist = $true }
+    if ($Credential) { $params.Credential = $Credential }
+    
+    Invoke-WorkdayValidationSuite @params
 }

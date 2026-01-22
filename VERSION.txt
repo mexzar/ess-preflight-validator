@@ -1,22 +1,22 @@
-VERSION=1.3.1
+VERSION=1.4.0
 STATUS=stable
-RELEASE_DATE=2026-01-21
-BUILD=20260121-180000
+RELEASE_DATE=2026-01-22
+BUILD=20260122-100000
 
 # ESS Pre-flight Validator Version Information
 # This file is read by scripts to display version information
 
 MAJOR=1
-MINOR=3
-PATCH=1
+MINOR=4
+PATCH=0
 PRERELEASE=
 BUILD_METADATA=
 
 # Full version string
-FULL_VERSION=1.3.1-stable
+FULL_VERSION=1.4.0-stable
 
 # Release notes summary
-RELEASE_NOTES="Enhanced UX with simplified agent selection, improved output formatting for CA policies and ServiceNow/SAP flows"
+RELEASE_NOTES="Deep Workday SSO diagnostics with security domain checklist generator"
 
 # Git information (populated by build script)
 GIT_COMMIT=

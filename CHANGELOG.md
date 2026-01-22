@@ -4,6 +4,54 @@ All notable changes to ESS Pre-flight Validator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-01-22
+
+### Added
+- **NEW: `Test-WorkdaySSOConfiguration.ps1`** - Deep SSO diagnostic tool for Workday integration
+  - Validates connection auth types (ensures Entra ID Integrated, not Basic)
+  - Maps identity to connection role (OAuthUser, ISU_WQL, ISU_Generic, Dataverse)
+  - Documents all 17 ESS workflows with required Workday security domains
+  - Generates printable checklist for Workday Administrator
+  - Provides 5 test patterns for users to validate permissions
+  - Includes error pattern recognition with remediation steps
+
+- **SSO Security Domain Documentation**
+  - READ workflows: Employee ID, Company Code, Cost Center, Base Compensation, Compensation Ratio, Service Anniversary, Hire Date, Employment Info, Position Number, Emergency Contact, Certifications, National IDs, Passports, Visas, Language Info
+  - WRITE workflows: Update Email, Update Phone Number
+  - ISU_WQL_COPILOT domains: Workday Accounts, Custom Report Creation, Person Data: Work Email, Worker Data: Current Staffing Info, Worker Data: Worker ID, Setup: Tenant Setup - Reporting
+  - ISU_Generic_COPILOT domains: Integration Build, Job Information, Setup: Compensation Packages
+  - PII flagging for sensitive data (National IDs, Passports, Visas, Emergency Contacts)
+
+- **Test Pattern Guide** for end-users
+  - Hello Test: Validates user context flow
+  - Basic Read Test: "What is my hire date?"
+  - Compensation Test: "What is my salary?"
+  - PII Test: "Show my passport information"
+  - Write Test: "Update my phone number to 555-1234"
+
+- **Error Pattern Recognition**
+  - "Error code: 400" → Permission denied in Workday
+  - "User context not found" → ISU_WQL_COPILOT report access
+  - "Unable to retrieve compensation" → Missing compensation domain
+  - "Cannot update contact" → BP: Home Contact Change not permitted
+  - "<masked-username>" → RaaS report failure
+
+- **Workday Admin Checklist Generator** (`-GenerateChecklist` flag)
+  - Exports complete security domain requirements to text file
+  - Organized by Employee as Self (Read), Employee as Self (Write), ISU_WQL, ISU_Generic
+  - Ready to hand off to Workday team
+
+### Changed
+- `Invoke-WorkdayValidationSuite.ps1` now supports `-IncludeSSODiagnostics` flag
+- Suite version updated to 1.3.0
+- Total steps dynamically adjust (4 standard, 5 with SSO diagnostics)
+
+### Technical Details
+- SSO validation reads connection properties to identify auth type
+- Security domains mapped from Microsoft documentation Task 6
+- "Employee as self" concept explained: user's OAuth token + self-service permissions
+- Connection purpose detection via name pattern matching (oauth/wql/generic/isu)
+
 ## [1.3.1] - 2026-01-21
 
 ### Added
