@@ -4,30 +4,39 @@
 
 .DESCRIPTION
     Deep diagnostic tool for Workday Single Sign-On (SSO) configuration.
-    Validates connection auth types, identity mapping, flow run history,
-    and generates a security domain checklist for Workday administrators.
-
-    This tool answers: "Is the plumbing configured correctly for SSO?"
+    Validates the 4 required connections, identifies auth types, and
+    generates a security domain checklist for Workday administrators.
 
 .PARAMETER EnvironmentId
     The Power Platform environment ID to validate.
 
+.PARAMETER OAuthUserConnection
+    Name of the OAuthUser connection (for employee SSO queries).
+
+.PARAMETER ISUWQLConnection
+    Name of the ISU_WQL connection (for user context lookup).
+
+.PARAMETER ISUGenericConnection
+    Name of the ISU_Generic connection (for template retrieval).
+
+.PARAMETER DataverseConnection
+    Name of the Dataverse connection (for ESS templates).
+
 .PARAMETER GenerateChecklist
     Exports a Workday Admin checklist to a text file.
 
-.PARAMETER CheckFlowHistory
-    Analyzes recent flow runs for error patterns.
+.PARAMETER SkipPrompts
+    Skip interactive prompts (use with connection name parameters).
 
 .EXAMPLE
     Test-WorkdaySSOConfiguration -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
 
 .EXAMPLE
-    Test-WorkdaySSOConfiguration -EnvironmentId $envId -GenerateChecklist -CheckFlowHistory
+    Test-WorkdaySSOConfiguration -EnvironmentId $envId -OAuthUserConnection "oauth user" -ISUWQLConnection "isu wql entra" -ISUGenericConnection "isu generic entra" -SkipPrompts
 
 .NOTES
-    Version: 1.0.0
+    Version: 2.0.0
     Author: ESS Pre-flight Validator
-    Requires: Microsoft.PowerApps.Administration.PowerShell module
 #>
 
 param(
@@ -35,10 +44,22 @@ param(
     [string]$EnvironmentId,
     
     [Parameter(Mandatory = $false)]
+    [string]$OAuthUserConnection,
+    
+    [Parameter(Mandatory = $false)]
+    [string]$ISUWQLConnection,
+    
+    [Parameter(Mandatory = $false)]
+    [string]$ISUGenericConnection,
+    
+    [Parameter(Mandatory = $false)]
+    [string]$DataverseConnection,
+    
+    [Parameter(Mandatory = $false)]
     [switch]$GenerateChecklist,
     
     [Parameter(Mandatory = $false)]
-    [switch]$CheckFlowHistory,
+    [switch]$SkipPrompts,
     
     [Parameter(Mandatory = $false)]
     [string]$OutputPath = "."
@@ -46,289 +67,47 @@ param(
 
 #region Security Domain Definitions
 $script:WorkdaySecurityDomains = @{
-    # Read Workflows - Employee as Self
     ReadWorkflows = @(
-        @{
-            Workflow = "Employee ID"
-            Domain = "Worker Data: Worker ID"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "Company Code"
-            Domain = "Worker Data: Current Staffing Information"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "Cost Center"
-            Domain = "Worker Data: Current Staffing Information"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "Base Compensation"
-            Domain = "Worker Data: Compensation"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "Compensation Ratio"
-            Domain = "Worker Data: Compensation"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-            AdditionalDomain = "Setup: Compensation Packages"
-        },
-        @{
-            Workflow = "Service Anniversary"
-            Domain = "Worker Data: Employment Information"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "Hire Date"
-            Domain = "Worker Data: Employment Information"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "Employment Information"
-            Domain = "Worker Data: Employment Information"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "Position Number"
-            Domain = "Worker Data: Current Staffing Information"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "Emergency Contact"
-            Domain = "Person Data: Emergency Contacts"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $true
-        },
-        @{
-            Workflow = "Certifications"
-            Domain = "Worker Data: Qualifications"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        },
-        @{
-            Workflow = "National IDs"
-            Domain = "Worker Data: National Identifiers"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $true
-        },
-        @{
-            Workflow = "Passports"
-            Domain = "Worker Data: Government IDs"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $true
-        },
-        @{
-            Workflow = "Visas"
-            Domain = "Worker Data: Government IDs"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $true
-        },
-        @{
-            Workflow = "Language Information"
-            Domain = "Worker Data: Skills and Experience"
-            Permission = "Get"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-        }
+        @{ Workflow = "Employee ID"; Domain = "Worker Data: Worker ID"; IsPII = $false },
+        @{ Workflow = "Company Code"; Domain = "Worker Data: Current Staffing Information"; IsPII = $false },
+        @{ Workflow = "Cost Center"; Domain = "Worker Data: Current Staffing Information"; IsPII = $false },
+        @{ Workflow = "Base Compensation"; Domain = "Worker Data: Compensation"; IsPII = $false },
+        @{ Workflow = "Compensation Ratio"; Domain = "Worker Data: Compensation + Setup: Compensation Packages"; IsPII = $false },
+        @{ Workflow = "Service Anniversary"; Domain = "Worker Data: Employment Information"; IsPII = $false },
+        @{ Workflow = "Hire Date"; Domain = "Worker Data: Employment Information"; IsPII = $false },
+        @{ Workflow = "Employment Information"; Domain = "Worker Data: Employment Information"; IsPII = $false },
+        @{ Workflow = "Position Number"; Domain = "Worker Data: Current Staffing Information"; IsPII = $false },
+        @{ Workflow = "Emergency Contact"; Domain = "Person Data: Emergency Contacts"; IsPII = $true },
+        @{ Workflow = "Certifications"; Domain = "Worker Data: Qualifications"; IsPII = $false },
+        @{ Workflow = "National IDs"; Domain = "Worker Data: National Identifiers"; IsPII = $true },
+        @{ Workflow = "Passports"; Domain = "Worker Data: Government IDs"; IsPII = $true },
+        @{ Workflow = "Visas"; Domain = "Worker Data: Government IDs"; IsPII = $true },
+        @{ Workflow = "Language Information"; Domain = "Worker Data: Skills and Experience"; IsPII = $false }
     )
-    
-    # Write Workflows - Employee as Self
     WriteWorkflows = @(
-        @{
-            Workflow = "Update Email"
-            Domain = "Person Data: Work Email"
-            Permission = "Get + Put"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-            BusinessProcess = "BP: Home Contact Change"
-        },
-        @{
-            Workflow = "Update Phone Number"
-            Domain = "Person Data: Work Contact Information"
-            Permission = "Get + Put"
-            SecurityGroup = "Employee as self"
-            IsPII = $false
-            BusinessProcess = "BP: Home Contact Change"
-        }
+        @{ Workflow = "Update Email"; Domain = "Person Data: Work Email"; BusinessProcess = "BP: Home Contact Change" },
+        @{ Workflow = "Update Phone"; Domain = "Person Data: Work Contact Information"; BusinessProcess = "BP: Home Contact Change" }
     )
-    
-    # ISU_WQL_COPILOT Domains (Context & Reports)
     ISU_WQL = @(
-        @{
-            Domain = "Workday Accounts"
-            Permission = "Get"
-            Purpose = "Account validation"
-        },
-        @{
-            Domain = "Custom Report Creation"
-            Permission = "View (Report/Task)"
-            Purpose = "Run RaaS reports"
-        },
-        @{
-            Domain = "Person Data: Work Email"
-            Permission = "Get"
-            Purpose = "User context lookup"
-        },
-        @{
-            Domain = "Worker Data: Current Staffing Information"
-            Permission = "Get"
-            Purpose = "User context lookup"
-        },
-        @{
-            Domain = "Worker Data: Worker ID"
-            Permission = "Get"
-            Purpose = "Employee ID mapping"
-        },
-        @{
-            Domain = "Setup: Tenant Setup - Reporting and Analytics"
-            Permission = "Get"
-            Purpose = "Report configuration"
-        }
+        "Workday Accounts (Get)",
+        "Custom Report Creation (View)",
+        "Person Data: Work Email (Get)",
+        "Worker Data: Current Staffing Information (Get)",
+        "Worker Data: Worker ID (Get)",
+        "Setup: Tenant Setup - Reporting and Analytics (Get)"
     )
-    
-    # ISU_Generic_COPILOT Domains (Templates & Integration)
     ISU_Generic = @(
-        @{
-            Domain = "Integration Build"
-            Permission = "Put"
-            Purpose = "API integration"
-        },
-        @{
-            Domain = "Job Information"
-            Permission = "Put"
-            Purpose = "Job data access"
-        },
-        @{
-            Domain = "Setup: Compensation Packages"
-            Permission = "Put"
-            Purpose = "Compensation config"
-        }
-    )
-    
-    # Expected Connection Configuration
-    ExpectedConnections = @(
-        @{
-            Name = "OAuthUser"
-            ExpectedIdentity = "Maker (signed-in user)"
-            Purpose = "Employee queries via SSO - YOUR identity for YOUR data"
-            AuthType = "Microsoft Entra ID Integrated"
-        },
-        @{
-            Name = "Context Generic User"
-            ExpectedIdentity = "ISU_WQL_COPILOT"
-            Purpose = "User context lookup via RaaS report"
-            AuthType = "Microsoft Entra ID Integrated"
-        },
-        @{
-            Name = "Generic User"
-            ExpectedIdentity = "ISU_Generic_COPILOT"
-            Purpose = "Template retrieval and integration"
-            AuthType = "Microsoft Entra ID Integrated"
-        },
-        @{
-            Name = "Microsoft Dataverse"
-            ExpectedIdentity = "Maker (signed-in user)"
-            Purpose = "Access to ESS templates in Dataverse"
-            AuthType = "Microsoft Entra ID"
-        }
+        "Integration Build (Put)",
+        "Job Information (Put)",
+        "Setup: Compensation Packages (Put)"
     )
 }
 
-# Test patterns for users
 $script:TestPatterns = @(
-    @{
-        Pattern = "Hello Test"
-        UserAction = "Open agent, check if greeted by name"
-        WhatItTests = "User Context flow + ISU_WQL permissions"
-        ExpectedResult = "Name appears, not <masked-username>"
-        FailureDomain = "Custom Report Creation, Worker Data: Worker ID"
-    },
-    @{
-        Pattern = "Basic Read Test"
-        UserAction = 'Ask: "What is my hire date?"'
-        WhatItTests = "OAuthUser + Employee as self + Employment domain"
-        ExpectedResult = "Returns your hire date"
-        FailureDomain = "Worker Data: Employment Information"
-    },
-    @{
-        Pattern = "Compensation Test"
-        UserAction = 'Ask: "What is my salary?"'
-        WhatItTests = "OAuthUser + Employee as self + Compensation domain"
-        ExpectedResult = "Returns your salary/compensation"
-        FailureDomain = "Worker Data: Compensation"
-    },
-    @{
-        Pattern = "PII Test"
-        UserAction = 'Ask: "Show my passport information"'
-        WhatItTests = "OAuthUser + Employee as self + Government IDs domain"
-        ExpectedResult = "Returns passport info (if enabled)"
-        FailureDomain = "Worker Data: Government IDs"
-    },
-    @{
-        Pattern = "Write Test"
-        UserAction = 'Ask: "Update my phone number to 555-1234"'
-        WhatItTests = "OAuthUser + Employee as self + BP: Home Contact Change"
-        ExpectedResult = "Confirmation message + Workday updated"
-        FailureDomain = "Person Data: Work Contact Information + BP: Home Contact Change"
-    }
-)
-
-# Error pattern recognition
-$script:ErrorPatterns = @(
-    @{
-        ErrorMessage = "Error code: 400"
-        LikelyCause = "Permission denied in Workday"
-        CheckDomain = "Check flow run details for specific domain"
-        Resolution = "Review Workday security domain permissions"
-    },
-    @{
-        ErrorMessage = "User context not found"
-        LikelyCause = "ISU_WQL_COPILOT cannot run RaaS report"
-        CheckDomain = "ISSG_WQL_COPILOT domains"
-        Resolution = "Verify Custom Report Creation and Worker Data: Worker ID permissions"
-    },
-    @{
-        ErrorMessage = "Unable to retrieve compensation"
-        LikelyCause = "Employee as self missing compensation domain"
-        CheckDomain = "Worker Data: Compensation"
-        Resolution = "Add GET access for Employee as self to Worker Data: Compensation"
-    },
-    @{
-        ErrorMessage = "Cannot update contact"
-        LikelyCause = "Business process not permitted"
-        CheckDomain = "BP: Home Contact Change"
-        Resolution = "Enable BP: Home Contact Change for Employee as self"
-    },
-    @{
-        ErrorMessage = "<masked-username>"
-        LikelyCause = "RaaS report failed or returned empty"
-        CheckDomain = "ISU_WQL_COPILOT report access"
-        Resolution = "Verify WD_User_Context report exists and ISU can execute it"
-    }
+    @{ Test = "Hello Test"; Action = "Open agent, check greeting"; Expected = "Your name appears"; FailCheck = "ISU_WQL permissions" },
+    @{ Test = "Hire Date"; Action = 'Ask "What is my hire date?"'; Expected = "Returns date"; FailCheck = "Worker Data: Employment Information" },
+    @{ Test = "Salary"; Action = 'Ask "What is my salary?"'; Expected = "Returns compensation"; FailCheck = "Worker Data: Compensation" },
+    @{ Test = "Update Phone"; Action = 'Ask "Update my phone to 555-1234"'; Expected = "Confirmation"; FailCheck = "BP: Home Contact Change" }
 )
 #endregion
 
@@ -337,376 +116,393 @@ function Test-WorkdaySSOConfiguration {
     param(
         [Parameter(Mandatory = $true)]
         [string]$EnvironmentId,
-        
-        [Parameter(Mandatory = $false)]
+        [string]$OAuthUserConnection,
+        [string]$ISUWQLConnection,
+        [string]$ISUGenericConnection,
+        [string]$DataverseConnection,
         [switch]$GenerateChecklist,
-        
-        [Parameter(Mandatory = $false)]
-        [switch]$CheckFlowHistory,
-        
-        [Parameter(Mandatory = $false)]
+        [switch]$SkipPrompts,
         [string]$OutputPath = "."
     )
     
-    $results = @()
-    
     Write-Host ""
-    Write-Host "╔══════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-    Write-Host "║           WORKDAY SSO CONFIGURATION VALIDATOR                        ║" -ForegroundColor Cyan
-    Write-Host "║           Deep Diagnostic for Entra ID Integrated Auth               ║" -ForegroundColor Cyan
-    Write-Host "╚══════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host "=======================================================================" -ForegroundColor Cyan
+    Write-Host "           WORKDAY SSO CONFIGURATION VALIDATOR v2.0                   " -ForegroundColor Cyan
+    Write-Host "=======================================================================" -ForegroundColor Cyan
     Write-Host ""
     
-    #region Phase 1: Connection Configuration Analysis
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host "  PHASE 1: CONNECTION CONFIGURATION ANALYSIS" -ForegroundColor Cyan
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host ""
+    #region Get All Connections
+    Write-Host "  Scanning connections in environment..." -ForegroundColor Gray
     
     try {
-        # Get all Workday SOAP connections
-        $allConnections = Get-AdminPowerAppConnection -EnvironmentName $EnvironmentId -ErrorAction Stop |
-            Where-Object { $_.ConnectorName -eq 'shared_workdaysoap' -and $_.Statuses[0].Status -eq 'Connected' }
+        $allConnections = Get-AdminPowerAppConnection -EnvironmentName $EnvironmentId -ErrorAction Stop
+        $workdayConnections = $allConnections | Where-Object { $_.ConnectorName -eq 'shared_workdaysoap' -and $_.Statuses[0].Status -eq 'Connected' }
+        $dataverseConnections = $allConnections | Where-Object { $_.ConnectorName -eq 'shared_commondataserviceforapps' -and $_.Statuses[0].Status -eq 'Connected' }
         
-        if ($allConnections.Count -eq 0) {
-            Write-Host "  ❌ No active Workday SOAP connections found!" -ForegroundColor Red
-            $results += [PSCustomObject]@{
-                CheckpointId = "SSO-CONN-001"
-                Category = "Workday SSO"
-                Priority = "Critical"
-                Status = "Failed"
-                Result = "No active Workday SOAP connections"
-                Remediation = "Install Workday Extension Pack and configure connections"
-            }
-        }
-        else {
-            Write-Host "  📊 Found $($allConnections.Count) active Workday connection(s)" -ForegroundColor Green
-            Write-Host ""
-            
-            # Analyze each connection
-            $connectionIndex = 0
-            foreach ($conn in $allConnections) {
-                $connectionIndex++
-                $connName = $conn.DisplayName
-                $connId = $conn.ConnectionName
-                $createdTime = $conn.CreatedTime
-                
-                # Try to determine connection purpose based on name patterns
-                $purpose = "Unknown"
-                $expectedAuth = "Microsoft Entra ID Integrated"
-                
-                if ($connName -match 'oauth|user' -and $connName -notmatch 'generic|isu|wql') {
-                    $purpose = "OAuthUser (Employee SSO)"
-                    $icon = "👤"
-                }
-                elseif ($connName -match 'wql|context') {
-                    $purpose = "Context Generic User (ISU_WQL)"
-                    $icon = "📋"
-                }
-                elseif ($connName -match 'generic|isu' -and $connName -notmatch 'wql') {
-                    $purpose = "Generic User (ISU_Generic)"
-                    $icon = "🔧"
-                }
-                else {
-                    $purpose = "Workday Connection"
-                    $icon = "🔗"
-                }
-                
-                Write-Host "  $icon $connName" -ForegroundColor White
-                Write-Host "     Purpose: $purpose" -ForegroundColor Gray
-                Write-Host "     Status: Connected ✓" -ForegroundColor Green
-                Write-Host "     Created: $createdTime" -ForegroundColor Gray
-                Write-Host ""
-                
-                $results += [PSCustomObject]@{
-                    CheckpointId = "SSO-CONN-$($connectionIndex.ToString('000'))"
-                    Category = "Workday SSO"
-                    Priority = "High"
-                    Status = "Passed"
-                    Result = "Connection '$connName' - $purpose"
-                    ConnectionId = $connId
-                }
-            }
-            
-            # Expected connections check
-            Write-Host "  ───────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
-            Write-Host "  📋 Expected Connection Mapping (Entra SSO):" -ForegroundColor Yellow
-            Write-Host ""
-            foreach ($expected in $script:WorkdaySecurityDomains.ExpectedConnections) {
-                Write-Host "     $($expected.Name)" -ForegroundColor White
-                Write-Host "       Identity: $($expected.ExpectedIdentity)" -ForegroundColor Gray
-                Write-Host "       Auth: $($expected.AuthType)" -ForegroundColor Gray
-                Write-Host "       Purpose: $($expected.Purpose)" -ForegroundColor DarkGray
-                Write-Host ""
-            }
-        }
+        Write-Host "  Found $($workdayConnections.Count) Workday + $($dataverseConnections.Count) Dataverse connections" -ForegroundColor Green
+        Write-Host ""
     }
     catch {
-        Write-Host "  ⚠️ Error checking connections: $($_.Exception.Message)" -ForegroundColor Yellow
+        Write-Host "  ERROR scanning connections: $($_.Exception.Message)" -ForegroundColor Red
+        return
     }
     #endregion
     
-    #region Phase 2: Flow Run History Analysis
-    if ($CheckFlowHistory) {
-        Write-Host ""
-        Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-        Write-Host "  PHASE 2: FLOW RUN HISTORY ANALYSIS" -ForegroundColor Cyan
-        Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-        Write-Host ""
+    #region Auto-Detect Best Matches
+    function Find-BestMatch {
+        param($Connections, $Patterns)
+        foreach ($pattern in $Patterns) {
+            $match = $Connections | Where-Object { $_.DisplayName -match $pattern } | Select-Object -First 1
+            if ($match) { return $match }
+        }
+        return $null
+    }
+    
+    $detectedOAuth = Find-BestMatch -Connections $workdayConnections -Patterns @('oauth', 'user.*oauth', 'oauthuser')
+    $detectedWQL = Find-BestMatch -Connections $workdayConnections -Patterns @('wql', 'context', 'isu.*wql')
+    $detectedGeneric = Find-BestMatch -Connections $workdayConnections -Patterns @('generic(?!.*wql)', 'isu.*generic')
+    $detectedDataverse = $dataverseConnections | Select-Object -First 1
+    #endregion
+    
+    #region Connection Setup
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
+    Write-Host "  ESS REQUIRES 4 CONNECTIONS - LET'S IDENTIFY YOURS" -ForegroundColor Cyan
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
+    Write-Host ""
+    Write-Host "  TIP: Find connection names at:" -ForegroundColor Yellow
+    Write-Host "  https://make.powerapps.com/environments/$EnvironmentId/connections" -ForegroundColor Gray
+    Write-Host ""
+    
+    $confirmedConnections = @{}
+    
+    # Helper function for prompts
+    function Get-ConnectionConfirmation {
+        param(
+            [string]$Label,
+            [string]$Purpose,
+            [string]$DetectedName,
+            [string]$ProvidedName,
+            [bool]$SkipPrompts
+        )
         
-        try {
-            $workdayFlows = Get-AdminFlow -EnvironmentName $EnvironmentId -ErrorAction Stop |
-                Where-Object { $_.DisplayName -match 'Workday' }
-            
-            foreach ($flow in $workdayFlows) {
-                Write-Host "  🔄 $($flow.DisplayName)" -ForegroundColor White
-                
-                $flowState = if ($flow.Enabled) { "✅ Enabled" } else { "❌ Disabled" }
-                Write-Host "     State: $flowState" -ForegroundColor $(if ($flow.Enabled) { "Green" } else { "Red" })
-                
-                # Note: Flow run history requires additional API calls
-                # This is a placeholder for the structure
-                Write-Host "     Last Modified: $($flow.LastModifiedTime)" -ForegroundColor Gray
-                Write-Host ""
+        Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkGray
+        Write-Host "  | $($Label.PadRight(63)) |" -ForegroundColor White
+        Write-Host "  | $($Purpose.PadRight(63)) |" -ForegroundColor DarkGray
+        Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkGray
+        
+        if ($ProvidedName) {
+            Write-Host "     Using provided: " -NoNewline -ForegroundColor Gray
+            Write-Host "$ProvidedName" -ForegroundColor Green
+            Write-Host ""
+            return $ProvidedName
+        }
+        
+        if ($DetectedName) {
+            Write-Host "     Auto-detected: " -NoNewline -ForegroundColor Gray
+            Write-Host "$DetectedName" -ForegroundColor Yellow
+        } else {
+            Write-Host "     Auto-detected: " -NoNewline -ForegroundColor Gray
+            Write-Host "(none found)" -ForegroundColor DarkGray
+        }
+        
+        if ($SkipPrompts) {
+            Write-Host ""
+            return $DetectedName
+        }
+        
+        $default = if ($DetectedName) { $DetectedName } else { "" }
+        Write-Host -NoNewline "     Confirm or enter name [$default]: " -ForegroundColor Cyan
+        $userInput = Read-Host
+        $result = if ([string]::IsNullOrWhiteSpace($userInput)) { $default } else { $userInput.Trim() }
+        Write-Host ""
+        return $result
+    }
+    
+    # 1. OAuthUser
+    $confirmedConnections['OAuthUser'] = Get-ConnectionConfirmation `
+        -Label "1. OAuthUser Connection" `
+        -Purpose "YOUR identity for employee data queries (SSO)" `
+        -DetectedName $(if ($detectedOAuth) { $detectedOAuth.DisplayName } else { $null }) `
+        -ProvidedName $OAuthUserConnection `
+        -SkipPrompts $SkipPrompts
+    
+    # 2. ISU_WQL
+    $confirmedConnections['ISU_WQL'] = Get-ConnectionConfirmation `
+        -Label "2. Context Generic User (ISU_WQL)" `
+        -Purpose "Maps your UPN to Workday Employee ID via RaaS report" `
+        -DetectedName $(if ($detectedWQL) { $detectedWQL.DisplayName } else { $null }) `
+        -ProvidedName $ISUWQLConnection `
+        -SkipPrompts $SkipPrompts
+    
+    # 3. ISU_Generic
+    $confirmedConnections['ISU_Generic'] = Get-ConnectionConfirmation `
+        -Label "3. Generic User (ISU_Generic)" `
+        -Purpose "Template retrieval and API integration" `
+        -DetectedName $(if ($detectedGeneric) { $detectedGeneric.DisplayName } else { $null }) `
+        -ProvidedName $ISUGenericConnection `
+        -SkipPrompts $SkipPrompts
+    
+    # 4. Dataverse
+    $confirmedConnections['Dataverse'] = Get-ConnectionConfirmation `
+        -Label "4. Dataverse Connection" `
+        -Purpose "Access to ESS templates in Dataverse" `
+        -DetectedName $(if ($detectedDataverse) { $detectedDataverse.DisplayName } else { $null }) `
+        -ProvidedName $DataverseConnection `
+        -SkipPrompts $SkipPrompts
+    #endregion
+    
+    #region Validate Connections
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
+    Write-Host "  VALIDATING YOUR CONNECTIONS" -ForegroundColor Cyan
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
+    Write-Host ""
+    
+    $validationResults = @()
+    $passCount = 0
+    $failCount = 0
+    
+    foreach ($connType in @('OAuthUser', 'ISU_WQL', 'ISU_Generic', 'Dataverse')) {
+        $connName = $confirmedConnections[$connType]
+        
+        if ([string]::IsNullOrWhiteSpace($connName)) {
+            Write-Host "  [WARN] $connType`: " -NoNewline -ForegroundColor Yellow
+            Write-Host "Skipped (no name provided)" -ForegroundColor DarkGray
+            $validationResults += [PSCustomObject]@{
+                Connection = $connType
+                Name = "(skipped)"
+                Status = "Skipped"
+                Details = "No connection name provided"
+            }
+            continue
+        }
+        
+        # Find the actual connection
+        $searchPool = if ($connType -eq 'Dataverse') { $dataverseConnections } else { $workdayConnections }
+        $foundConn = $searchPool | Where-Object { $_.DisplayName -eq $connName } | Select-Object -First 1
+        
+        if ($foundConn) {
+            $status = $foundConn.Statuses[0].Status
+            if ($status -eq 'Connected') {
+                Write-Host "  [PASS] $connType`: " -NoNewline -ForegroundColor Green
+                Write-Host "`"$connName`" - Connected" -ForegroundColor White
+                $passCount++
+                $validationResults += [PSCustomObject]@{
+                    Connection = $connType
+                    Name = $connName
+                    Status = "Passed"
+                    Details = "Connected"
+                }
+            } else {
+                Write-Host "  [FAIL] $connType`: " -NoNewline -ForegroundColor Red
+                Write-Host "`"$connName`" - $status" -ForegroundColor Yellow
+                $failCount++
+                $validationResults += [PSCustomObject]@{
+                    Connection = $connType
+                    Name = $connName
+                    Status = "Failed"
+                    Details = $status
+                }
+            }
+        } else {
+            Write-Host "  [FAIL] $connType`: " -NoNewline -ForegroundColor Red
+            Write-Host "`"$connName`" - NOT FOUND" -ForegroundColor Yellow
+            $failCount++
+            $validationResults += [PSCustomObject]@{
+                Connection = $connType
+                Name = $connName
+                Status = "Failed"
+                Details = "Connection not found"
             }
         }
-        catch {
-            Write-Host "  ⚠️ Error checking flow history: $($_.Exception.Message)" -ForegroundColor Yellow
-        }
     }
+    
+    Write-Host ""
+    Write-Host "  -----------------------------------------------------------------------" -ForegroundColor DarkGray
+    if ($failCount -eq 0 -and $passCount -ge 3) {
+        Write-Host "  CONNECTION CHECK: PASSED ($passCount/4 validated)" -ForegroundColor Green
+    } elseif ($failCount -gt 0) {
+        Write-Host "  CONNECTION CHECK: $failCount ISSUE(S) FOUND" -ForegroundColor Red
+    } else {
+        Write-Host "  CONNECTION CHECK: $passCount/4 validated" -ForegroundColor Yellow
+    }
+    Write-Host ""
     #endregion
     
-    #region Phase 3: Security Domain Requirements
+    #region Security Domain Checklist
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
+    Write-Host "  WORKDAY SECURITY DOMAINS (For Workday Admin)" -ForegroundColor Cyan
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
     Write-Host ""
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host "  PHASE 3: SECURITY DOMAIN REQUIREMENTS" -ForegroundColor Cyan
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host ""
-    Write-Host "  These require Workday Admin verification. Cannot be tested remotely." -ForegroundColor Yellow
+    Write-Host "  These permissions must be configured IN WORKDAY by your Workday Admin." -ForegroundColor Yellow
+    Write-Host "  We cannot test these remotely - they require Workday console access." -ForegroundColor DarkGray
     Write-Host ""
     
-    # Read Workflows
-    Write-Host "  ┌────────────────────────────────────────────────────────────────────┐" -ForegroundColor DarkCyan
-    Write-Host "  │  READ WORKFLOWS (Employee as Self - GET via Integration)           │" -ForegroundColor Cyan
-    Write-Host "  ├────────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
-    
-    foreach ($workflow in $script:WorkdaySecurityDomains.ReadWorkflows) {
-        $piiFlag = if ($workflow.IsPII) { " ⚠️ PII" } else { "" }
-        $workflowName = $workflow.Workflow.PadRight(20)
-        Write-Host "  │  □ $workflowName → $($workflow.Domain)$piiFlag" -ForegroundColor White
-        
-        if ($workflow.AdditionalDomain) {
-            Write-Host "  │                         → $($workflow.AdditionalDomain)" -ForegroundColor Gray
-        }
+    # Employee as Self - Read
+    Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkCyan
+    Write-Host "  |  EMPLOYEE AS SELF - READ PERMISSIONS (GET via Integration)      |" -ForegroundColor Cyan
+    Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkCyan
+    foreach ($wf in $script:WorkdaySecurityDomains.ReadWorkflows) {
+        $pii = if ($wf.IsPII) { " [PII]" } else { "" }
+        Write-Host "     [ ] $($wf.Workflow.PadRight(22)) -> $($wf.Domain)$pii" -ForegroundColor White
     }
-    
-    # Write Workflows
-    Write-Host "  ├────────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
-    Write-Host "  │  WRITE WORKFLOWS (Employee as Self - GET+PUT via Integration)      │" -ForegroundColor Cyan
-    Write-Host "  ├────────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
-    
-    foreach ($workflow in $script:WorkdaySecurityDomains.WriteWorkflows) {
-        $workflowName = $workflow.Workflow.PadRight(20)
-        Write-Host "  │  □ $workflowName → $($workflow.Domain) ($($workflow.Permission))" -ForegroundColor White
-        Write-Host "  │                         → $($workflow.BusinessProcess) (Initiate)" -ForegroundColor Gray
-    }
-    
-    Write-Host "  └────────────────────────────────────────────────────────────────────┘" -ForegroundColor DarkCyan
-    #endregion
-    
-    #region Phase 4: ISU Service Account Domains
     Write-Host ""
-    Write-Host "  ┌────────────────────────────────────────────────────────────────────┐" -ForegroundColor DarkCyan
-    Write-Host "  │  ISU SERVICE ACCOUNT DOMAINS                                       │" -ForegroundColor Cyan
-    Write-Host "  ├────────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
-    Write-Host "  │  ISSG_WQL_COPILOT (Context & Reports)                              │" -ForegroundColor Yellow
-    Write-Host "  ├────────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
     
+    # Employee as Self - Write
+    Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkCyan
+    Write-Host "  |  EMPLOYEE AS SELF - WRITE PERMISSIONS (GET+PUT)                 |" -ForegroundColor Cyan
+    Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkCyan
+    foreach ($wf in $script:WorkdaySecurityDomains.WriteWorkflows) {
+        Write-Host "     [ ] $($wf.Workflow.PadRight(22)) -> $($wf.Domain)" -ForegroundColor White
+        Write-Host "                                  + $($wf.BusinessProcess)" -ForegroundColor Gray
+    }
+    Write-Host ""
+    
+    # ISU Accounts
+    Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkCyan
+    Write-Host "  |  ISU SERVICE ACCOUNT PERMISSIONS                                |" -ForegroundColor Cyan
+    Write-Host "  +-----------------------------------------------------------------+" -ForegroundColor DarkCyan
+    Write-Host "     ISSG_WQL_COPILOT (for context/reports):" -ForegroundColor Yellow
     foreach ($domain in $script:WorkdaySecurityDomains.ISU_WQL) {
-        $domainName = $domain.Domain.PadRight(45)
-        Write-Host "  │  □ $domainName → $($domain.Permission)" -ForegroundColor White
+        Write-Host "       [ ] $domain" -ForegroundColor White
     }
-    
-    Write-Host "  ├────────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
-    Write-Host "  │  ISSG_Generic_COPILOT (Templates & Integration)                    │" -ForegroundColor Yellow
-    Write-Host "  ├────────────────────────────────────────────────────────────────────┤" -ForegroundColor DarkCyan
-    
+    Write-Host ""
+    Write-Host "     ISSG_Generic_COPILOT (for templates/integration):" -ForegroundColor Yellow
     foreach ($domain in $script:WorkdaySecurityDomains.ISU_Generic) {
-        $domainName = $domain.Domain.PadRight(45)
-        Write-Host "  │  □ $domainName → $($domain.Permission)" -ForegroundColor White
+        Write-Host "       [ ] $domain" -ForegroundColor White
     }
-    
-    Write-Host "  └────────────────────────────────────────────────────────────────────┘" -ForegroundColor DarkCyan
+    Write-Host ""
     #endregion
     
-    #region Phase 5: Test Patterns
-    Write-Host ""
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host "  PHASE 4: TEST PATTERNS (Try These to Validate Permissions)" -ForegroundColor Cyan
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
+    #region Test Patterns
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
+    Write-Host "  QUICK TESTS (Validate Permissions Are Working)" -ForegroundColor Cyan
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
     Write-Host ""
     
-    $patternNum = 1
-    foreach ($pattern in $script:TestPatterns) {
-        Write-Host "  $patternNum. $($pattern.Pattern)" -ForegroundColor White
-        Write-Host "     Action: $($pattern.UserAction)" -ForegroundColor Gray
-        Write-Host "     Tests: $($pattern.WhatItTests)" -ForegroundColor DarkGray
-        Write-Host "     Expected: $($pattern.ExpectedResult)" -ForegroundColor Green
-        Write-Host "     If fails, check: $($pattern.FailureDomain)" -ForegroundColor Yellow
+    $testNum = 1
+    foreach ($test in $script:TestPatterns) {
+        Write-Host "  $testNum. $($test.Test)" -ForegroundColor White
+        Write-Host "     Do: $($test.Action)" -ForegroundColor Gray
+        Write-Host "     Expect: $($test.Expected)" -ForegroundColor Green
+        Write-Host "     If fails: Check $($test.FailCheck)" -ForegroundColor Yellow
         Write-Host ""
-        $patternNum++
+        $testNum++
     }
     #endregion
     
-    #region Phase 6: Error Pattern Reference
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host "  PHASE 5: ERROR PATTERN REFERENCE" -ForegroundColor Cyan
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-    Write-Host ""
-    
-    foreach ($errorPattern in $script:ErrorPatterns) {
-        Write-Host "  ❌ `"$($errorPattern.ErrorMessage)`"" -ForegroundColor Red
-        Write-Host "     Cause: $($errorPattern.LikelyCause)" -ForegroundColor Yellow
-        Write-Host "     Check: $($errorPattern.CheckDomain)" -ForegroundColor Gray
-        Write-Host "     Fix: $($errorPattern.Resolution)" -ForegroundColor Green
-        Write-Host ""
-    }
-    #endregion
-    
-    #region Generate Checklist
+    #region Generate Checklist File
     if ($GenerateChecklist) {
-        Write-Host ""
-        Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
-        Write-Host "  GENERATING WORKDAY ADMIN CHECKLIST..." -ForegroundColor Cyan
-        Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
+        Write-Host "=======================================================================" -ForegroundColor DarkCyan
+        Write-Host "  GENERATING CHECKLIST FILE..." -ForegroundColor Cyan
+        Write-Host "=======================================================================" -ForegroundColor DarkCyan
         Write-Host ""
         
         $checklistPath = Join-Path $OutputPath "WorkdaySecurityChecklist_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
         
         $checklistContent = @"
 ================================================================================
-                    WORKDAY SECURITY DOMAIN CHECKLIST
-                    ESS Pre-flight Validator
-                    Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
+              WORKDAY SECURITY DOMAIN CHECKLIST FOR ESS
+              Generated: $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
 ================================================================================
 
-This checklist must be completed by your Workday Administrator.
-ESS Agent requires these security domains to function correctly.
+INSTRUCTIONS: Complete this checklist in Workday Admin console.
+Reference: https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/workday#task-6-security-configuration
 
---------------------------------------------------------------------------------
+================================================================================
 SECTION 1: EMPLOYEE AS SELF - READ PERMISSIONS
---------------------------------------------------------------------------------
-These domains allow employees to query their OWN data via SSO.
-Add "Employee as self" to each domain with GET access (Integration Permissions).
+================================================================================
+Add "Employee as self" security group with GET access (Integration Permissions)
 
 "@
-        
-        foreach ($workflow in $script:WorkdaySecurityDomains.ReadWorkflows) {
-            $piiNote = if ($workflow.IsPII) { " [PII - SENSITIVE]" } else { "" }
-            $checklistContent += "[ ] $($workflow.Workflow)$piiNote`n"
-            $checklistContent += "    Domain: $($workflow.Domain)`n"
-            $checklistContent += "    Permission: GET (Integration)`n"
-            if ($workflow.AdditionalDomain) {
-                $checklistContent += "    Also needs: $($workflow.AdditionalDomain)`n"
-            }
-            $checklistContent += "`n"
+        foreach ($wf in $script:WorkdaySecurityDomains.ReadWorkflows) {
+            $pii = if ($wf.IsPII) { " [PII]" } else { "" }
+            $checklistContent += "[ ] $($wf.Workflow)$pii`n    Domain: $($wf.Domain)`n`n"
         }
         
         $checklistContent += @"
---------------------------------------------------------------------------------
-SECTION 2: EMPLOYEE AS SELF - WRITE PERMISSIONS
---------------------------------------------------------------------------------
-These domains allow employees to UPDATE their own data via SSO.
-Add "Employee as self" with GET+PUT access AND Business Process permission.
+================================================================================
+SECTION 2: EMPLOYEE AS SELF - WRITE PERMISSIONS  
+================================================================================
+Add "Employee as self" with GET+PUT access AND Business Process initiate
 
 "@
-        
-        foreach ($workflow in $script:WorkdaySecurityDomains.WriteWorkflows) {
-            $checklistContent += "[ ] $($workflow.Workflow)`n"
-            $checklistContent += "    Domain: $($workflow.Domain)`n"
-            $checklistContent += "    Permission: GET + PUT (Integration)`n"
-            $checklistContent += "    Business Process: $($workflow.BusinessProcess) (Initiate)`n"
-            $checklistContent += "`n"
+        foreach ($wf in $script:WorkdaySecurityDomains.WriteWorkflows) {
+            $checklistContent += "[ ] $($wf.Workflow)`n    Domain: $($wf.Domain) (Get + Put)`n    Business Process: $($wf.BusinessProcess) (Initiate)`n`n"
         }
         
         $checklistContent += @"
---------------------------------------------------------------------------------
-SECTION 3: ISU_WQL_COPILOT SERVICE ACCOUNT
---------------------------------------------------------------------------------
-Security Group: ISSG_WQL_COPILOT
-Purpose: Runs RaaS reports to get user context (maps UPN to Employee ID)
+================================================================================
+SECTION 3: ISU_WQL_COPILOT (ISSG_WQL_COPILOT)
+================================================================================
 
 "@
-        
         foreach ($domain in $script:WorkdaySecurityDomains.ISU_WQL) {
-            $checklistContent += "[ ] $($domain.Domain)`n"
-            $checklistContent += "    Permission: $($domain.Permission)`n"
-            $checklistContent += "    Purpose: $($domain.Purpose)`n"
-            $checklistContent += "`n"
+            $checklistContent += "[ ] $domain`n"
         }
         
         $checklistContent += @"
---------------------------------------------------------------------------------
-SECTION 4: ISU_GENERIC_COPILOT SERVICE ACCOUNT
---------------------------------------------------------------------------------
-Security Group: ISSG_Generic_COPILOT
-Purpose: Accesses templates and integration configuration
+
+================================================================================
+SECTION 4: ISU_GENERIC_COPILOT (ISSG_Generic_COPILOT)
+================================================================================
 
 "@
-        
         foreach ($domain in $script:WorkdaySecurityDomains.ISU_Generic) {
-            $checklistContent += "[ ] $($domain.Domain)`n"
-            $checklistContent += "    Permission: $($domain.Permission)`n"
-            $checklistContent += "    Purpose: $($domain.Purpose)`n"
-            $checklistContent += "`n"
+            $checklistContent += "[ ] $domain`n"
         }
         
         $checklistContent += @"
---------------------------------------------------------------------------------
-SECTION 5: FINAL STEPS
---------------------------------------------------------------------------------
-[ ] Run: Activate Pending Security Policy Changes
-[ ] Verify ISU accounts are in correct ISSGs
-[ ] Test with a pilot user before rollout
 
---------------------------------------------------------------------------------
-DOCUMENTATION REFERENCE
---------------------------------------------------------------------------------
-Microsoft Docs: https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/workday#task-6-security-configuration
-
+================================================================================
+FINAL STEP: Run "Activate Pending Security Policy Changes" in Workday
 ================================================================================
 "@
         
         $checklistContent | Out-File -FilePath $checklistPath -Encoding UTF8
         
-        Write-Host "  ✅ Checklist exported to:" -ForegroundColor Green
-        Write-Host "     $checklistPath" -ForegroundColor White
+        Write-Host "  Checklist saved to:" -ForegroundColor Green
+        Write-Host "  $checklistPath" -ForegroundColor White
         Write-Host ""
-        Write-Host "  📧 Send this file to your Workday Administrator!" -ForegroundColor Yellow
+        Write-Host "  Send this file to your Workday Administrator!" -ForegroundColor Yellow
+        Write-Host ""
     }
     #endregion
     
-    #region Summary
-    Write-Host ""
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
+    #region Final Summary
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
     Write-Host "  SUMMARY" -ForegroundColor Cyan
-    Write-Host "  ═══════════════════════════════════════════════════════════════════" -ForegroundColor DarkCyan
+    Write-Host "=======================================================================" -ForegroundColor DarkCyan
     Write-Host ""
-    Write-Host "  ✅ Connections Analyzed: $($results.Count)" -ForegroundColor Green
-    Write-Host "  📋 Security Domains Listed: $(($script:WorkdaySecurityDomains.ReadWorkflows.Count + $script:WorkdaySecurityDomains.WriteWorkflows.Count))" -ForegroundColor Cyan
-    Write-Host "  🔧 ISU Domains Required: $(($script:WorkdaySecurityDomains.ISU_WQL.Count + $script:WorkdaySecurityDomains.ISU_Generic.Count))" -ForegroundColor Cyan
-    Write-Host "  🧪 Test Patterns Provided: $($script:TestPatterns.Count)" -ForegroundColor Cyan
+    Write-Host "  Connections: $passCount passed, $failCount failed" -ForegroundColor $(if ($failCount -eq 0) { "Green" } else { "Yellow" })
+    Write-Host "  Security Domains: 15 READ + 2 WRITE + 9 ISU (requires Workday Admin)" -ForegroundColor Cyan
     Write-Host ""
-    Write-Host "  📖 Next Steps:" -ForegroundColor Yellow
-    Write-Host "     1. Share checklist with Workday Admin (use -GenerateChecklist)" -ForegroundColor White
-    Write-Host "     2. Have them verify/grant permissions" -ForegroundColor White
-    Write-Host "     3. Run test patterns to validate" -ForegroundColor White
-    Write-Host "     4. Check flow run history if issues persist" -ForegroundColor White
+    
+    if ($failCount -eq 0 -and $passCount -ge 3) {
+        Write-Host "  POWER PLATFORM SIDE LOOKS GOOD!" -ForegroundColor Green
+        Write-Host "  Next: Verify Workday security domains with your Workday Admin" -ForegroundColor White
+    } else {
+        Write-Host "  FIX CONNECTION ISSUES FIRST" -ForegroundColor Yellow
+        Write-Host "  Then: Verify Workday security domains" -ForegroundColor White
+    }
     Write-Host ""
     #endregion
     
-    return $results
+    return $validationResults
 }
 
 # Export for module use (silently ignore when dot-sourced)
 try { Export-ModuleMember -Function Test-WorkdaySSOConfiguration } catch { }
+
+# Run if called directly as a script
+if ($MyInvocation.InvocationName -ne '.') {
+    $params = @{ EnvironmentId = $EnvironmentId }
+    if ($OAuthUserConnection) { $params.OAuthUserConnection = $OAuthUserConnection }
+    if ($ISUWQLConnection) { $params.ISUWQLConnection = $ISUWQLConnection }
+    if ($ISUGenericConnection) { $params.ISUGenericConnection = $ISUGenericConnection }
+    if ($DataverseConnection) { $params.DataverseConnection = $DataverseConnection }
+    if ($GenerateChecklist) { $params.GenerateChecklist = $true }
+    if ($SkipPrompts) { $params.SkipPrompts = $true }
+    $params.OutputPath = $OutputPath
+    
+    Test-WorkdaySSOConfiguration @params
+}

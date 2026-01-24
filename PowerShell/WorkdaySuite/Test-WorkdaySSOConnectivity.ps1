@@ -1,17 +1,17 @@
-c<#
+<#
 .SYNOPSIS
-    Tests Workday SSO connectivity for end users via Azure AD OAuth
+    Tests Workday SSO connectivity for end users via Entra ID OAuth
 .DESCRIPTION
-    Validates that end users can authenticate to Workday via Azure AD SSO and 
+    Validates that end users can authenticate to Workday via Entra ID SSO and 
     access their own employee data using delegated permissions. This simulates
     the ESS agent calling Workday on behalf of a logged-in user.
 .EXAMPLE
     .\Test-WorkdaySSOConnectivity.ps1
-    Prompts for tenant, Azure AD app, and test user, then validates SSO flow
+    Prompts for tenant, Entra ID app, and test user, then validates SSO flow
 .NOTES
-    Requires: Azure AD Enterprise App configured for Workday with OAuth
+    Requires: Entra ID Enterprise App configured for Workday with OAuth
     Author: ESS Pre-flight Validator
-    Version: 1.0.0
+    Version: 1.1.0
 #>
 
 [CmdletBinding()]
@@ -21,37 +21,42 @@ param()
 
 Write-Host ""
 Write-Host "╔════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║     Workday SSO Connectivity Test (Azure AD OAuth)            ║" -ForegroundColor Cyan
+Write-Host "║     Workday SSO Connectivity Test (Entra ID OAuth)            ║" -ForegroundColor Cyan
 Write-Host "║     Tests end-user delegated access via SSO                   ║" -ForegroundColor Cyan
 Write-Host "╚════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
 # Collect inputs
 $workdayTenant = Read-Host "Enter Workday Tenant (e.g., contoso_impl)"
-$azureAppId = Read-Host "Enter Azure AD App ID (Workday Enterprise App Client ID)"
+$azureAppId = Read-Host "Enter Entra ID App ID (Workday Enterprise App Client ID)"
+$appIdUri = Read-Host "Enter Workday App ID URI (e.g., http://www.workday.com/your_tenant)"
 $testUserUPN = Read-Host "Enter test user UPN (e.g., user@contoso.com)"
-$tenantId = Read-Host "Enter Azure AD Tenant ID (or press Enter to use 'organizations')"
+$tenantId = Read-Host "Enter Entra ID Tenant ID (or press Enter to use 'organizations')"
 
 if ([string]::IsNullOrWhiteSpace($tenantId)) {
     $tenantId = "organizations"
 }
+
+# Build scope from App ID URI
+$workdayScope = "$appIdUri/.default"
 
 Write-Host ""
 Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host "Configuration Summary" -ForegroundColor Cyan
 Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host "Workday Tenant: $workdayTenant" -ForegroundColor Gray
-Write-Host "Azure AD App: $azureAppId" -ForegroundColor Gray
+Write-Host "Entra ID App: $azureAppId" -ForegroundColor Gray
+Write-Host "App ID URI: $appIdUri" -ForegroundColor Gray
+Write-Host "Scope: $workdayScope" -ForegroundColor Gray
 Write-Host "Test User: $testUserUPN" -ForegroundColor Gray
-Write-Host "Azure AD Tenant: $tenantId" -ForegroundColor Gray
+Write-Host "Entra ID Tenant: $tenantId" -ForegroundColor Gray
 Write-Host ""
 
 # Step 1: Initiate Device Code Flow
-Write-Host "🔐 Step 1: Initiating Azure AD authentication..." -ForegroundColor Cyan
+Write-Host "🔐 Step 1: Initiating Entra ID authentication..." -ForegroundColor Cyan
 Write-Host "   User will authenticate as: $testUserUPN" -ForegroundColor Gray
 Write-Host ""
 
-$workdayScope = "https://wd2-impl-services1.workday.com/.default"
 $deviceCodeUrl = "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/devicecode"
 $tokenUrl = "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token"
 
