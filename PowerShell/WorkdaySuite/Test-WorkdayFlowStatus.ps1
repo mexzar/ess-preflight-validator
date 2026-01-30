@@ -19,7 +19,7 @@
     only these flows will be validated (solution-scoped mode).
 
 .EXAMPLE
-    Test-WorkdayFlowStatus -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+    Test-WorkdayFlowStatus -EnvironmentId "00000000-0000-0000-0000-000000000000"
 
 .EXAMPLE
     # Solution-scoped mode
@@ -187,5 +187,7 @@ function Test-WorkdayFlowStatus {
     return $results
 }
 
-# Export for module use
-Export-ModuleMember -Function Test-WorkdayFlowStatus -ErrorAction SilentlyContinue
+# Export for module use (only when loaded as module)
+if ($ExecutionContext.SessionState.Module) {
+    Export-ModuleMember -Function Test-WorkdayFlowStatus
+}

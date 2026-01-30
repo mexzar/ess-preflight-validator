@@ -43,7 +43,7 @@ param(
 
 #region Interactive Prompts
 if (-not $WorkdayTenant) { $WorkdayTenant = Read-Host "Enter Workday Tenant (e.g., contoso_impl)" }
-if (-not $Username) { $Username = Read-Host "Enter ISU Username (without @tenant)" }
+if (-not $Username) { $Username = Read-Host "Enter Username (without @tenant)" }
 if (-not $Password) { $Password = Read-Host "Enter ISU Password" -AsSecureString }
 if (-not $TestEmployeeId) { $TestEmployeeId = Read-Host "Enter Test Employee ID (e.g., 21508)" }
 

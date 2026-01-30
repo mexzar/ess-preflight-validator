@@ -27,13 +27,13 @@
     PSCredential for Workday ISU account. If not provided, will prompt interactively.
 
 .EXAMPLE
-    Invoke-WorkdayValidationSuite -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+    Invoke-WorkdayValidationSuite -EnvironmentId "00000000-0000-0000-0000-000000000000"
 
 .EXAMPLE
-    Invoke-WorkdayValidationSuite -EnvironmentId "c3446975-..." -IncludeSSODiagnostics
+    Invoke-WorkdayValidationSuite -EnvironmentId "your-environment-id" -IncludeSSODiagnostics
 
 .EXAMPLE
-    Invoke-WorkdayValidationSuite -EnvironmentId "c3446975-..." -IncludeSSODiagnostics -GenerateChecklist
+    Invoke-WorkdayValidationSuite -EnvironmentId "your-environment-id" -IncludeSSODiagnostics -GenerateChecklist
 
 .NOTES
     Version: 1.3.0
@@ -56,7 +56,10 @@ param(
     [switch]$GenerateChecklist,
 
     [Parameter()]
-    [System.Management.Automation.PSCredential]$Credential
+    [System.Management.Automation.PSCredential]$Credential,
+
+    [Parameter()]
+    [string]$ExportPath
 )
 
 $ErrorActionPreference = "Stop"
@@ -243,5 +246,40 @@ if ($MyInvocation.InvocationName -ne '.') {
     if ($GenerateChecklist) { $params.GenerateChecklist = $true }
     if ($Credential) { $params.Credential = $Credential }
     
-    Invoke-WorkdayValidationSuite @params
+    $results = Invoke-WorkdayValidationSuite @params
+    
+    # Export to CSV if path provided
+    if ($ExportPath) {
+        $csvPath = if ($ExportPath -match '\.csv$') {
+            $ExportPath
+        } else {
+            $timestamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+            Join-Path $ExportPath "WorkdayValidation-$timestamp.csv"
+        }
+        
+        # Ensure directory exists
+        $csvDir = Split-Path $csvPath -Parent
+        if ($csvDir -and -not (Test-Path $csvDir)) {
+            New-Item -ItemType Directory -Path $csvDir -Force | Out-Null
+        }
+        
+        $results | Select-Object CheckpointId, Category, Priority, Status, Result, Remediation | 
+            Export-Csv -Path $csvPath -NoTypeInformation
+        
+        Write-Host ""
+        Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Green
+        Write-Host "║                    RESULTS EXPORTED                          ║" -ForegroundColor Green
+        Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Green
+        Write-Host ""
+        Write-Host "  📄 CSV Report: $csvPath" -ForegroundColor Cyan
+        Write-Host ""
+        Write-Host "  Open in Excel to filter/sort results." -ForegroundColor Gray
+        Write-Host ""
+    } else {
+        # No export path - remind user about the option
+        Write-Host ""
+        Write-Host "💡 Tip: Add -ExportPath to save results as CSV:" -ForegroundColor Yellow
+        Write-Host "   .\Invoke-WorkdayValidationSuite.ps1 -EnvironmentId `"$EnvironmentId`" -ExportPath `"C:\Reports\`"" -ForegroundColor DarkGray
+        Write-Host ""
+    }
 }

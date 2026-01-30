@@ -13,7 +13,7 @@
     Power Platform environment ID containing the Workday solution
 
 .EXAMPLE
-    Test-WorkdayEnvironmentVariables -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+    Test-WorkdayEnvironmentVariables -EnvironmentId "00000000-0000-0000-0000-000000000000"
 
 .NOTES
     Reference: https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/workday#step-4-environment-variables
@@ -203,5 +203,7 @@ function Test-WorkdayEnvironmentVariables {
     return $results
 }
 
-# Export for module use
-Export-ModuleMember -Function Test-WorkdayEnvironmentVariables -ErrorAction SilentlyContinue
+# Export for module use (only when loaded as module)
+if ($ExecutionContext.SessionState.Module) {
+    Export-ModuleMember -Function Test-WorkdayEnvironmentVariables
+}

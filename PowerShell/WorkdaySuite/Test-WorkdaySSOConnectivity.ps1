@@ -21,8 +21,8 @@ param()
 
 Write-Host ""
 Write-Host "╔════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
-Write-Host "║     Workday SSO Connectivity Test (Entra ID OAuth)            ║" -ForegroundColor Cyan
-Write-Host "║     Tests end-user delegated access via SSO                   ║" -ForegroundColor Cyan
+Write-Host "║     Workday SSO Connectivity Test (Entra ID OAuth)             ║" -ForegroundColor Cyan
+Write-Host "║     Tests end-user delegated access via SSO                    ║" -ForegroundColor Cyan
 Write-Host "╚════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 

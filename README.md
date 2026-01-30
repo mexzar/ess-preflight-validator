@@ -17,6 +17,21 @@ This solution provides comprehensive validation capabilities to assess deploymen
 - **Validation Reports**: JSON/HTML formatted validation results
 - **Automated Remediation**: Suggested fixes for common issues
 
+### 3. Workday Validation Suite
+Standalone tools for deep Workday integration testing:
+
+| Tool | Purpose |
+|------|---------|
+| **Test-WorkdayWorkflows.ps1** | Tests ALL 17 ESS pre-configured workflows via SOAP API |
+| **Test-WorkdaySSOConnectivity.ps1** | OAuth Device Code Flow testing for SSO validation |
+| **Test-WorkdaySSOConfiguration.ps1** | Validates 4 required Power Platform connections |
+| **Test-WorkdayConnectivity.ps1** | Basic endpoint and auth validation |
+
+### 4. Connectivity Test Suite
+- **Invoke-ConnectivitySuite.ps1**: Orchestrates all connectivity tests
+- **Test-CopilotAgentResponse.ps1**: Validates Copilot Studio agent responses
+- **Test-ServiceNowConnectivity.ps1**: ServiceNow HRSD/ITSM validation
+
 ## Validation Coverage
 
 ### Prerequisites Validation
@@ -36,6 +51,38 @@ This solution provides comprehensive validation capabilities to assess deploymen
 - **SAP SuccessFactors**: OData v2.0 connectivity, OAuth setup, template validation
 - **Workday**: SOAP/RaaS endpoints, authentication, template configurations
 - **ServiceNow**: Knowledge connector, HRSD/ITSM, Live Agent integration
+
+### Workday Security Domains
+The validator documents required permissions for all ESS workflows:
+
+**Read Workflows (15)** - Security Domain `Self-Service: [Domain] as Self`:
+| Workflow | Domain | PII |
+|----------|--------|-----|
+| Employee ID | Worker Profile | |
+| Company Code | Organizations | |
+| Cost Center | Organizations | |
+| Hire Date | Worker Profile | |
+| Employment Info | Worker Profile | |
+| Position Number | Worker Profile | |
+| Service Anniversary | Worker Profile | |
+| National IDs | Personal Data | ⚠️ |
+| Passports | Personal Data | ⚠️ |
+| Visas | Personal Data | ⚠️ |
+| Language Info | Worker Profile | |
+| Certifications | Qualifications | |
+| Base Compensation | Compensation | |
+| Compensation Ratio | Compensation | |
+| Emergency Contact | Personal Data | ⚠️ |
+
+**Write Workflows (2)** - Security Domain `Self-Service: [Domain] as Self`:
+| Workflow | Domain |
+|----------|--------|
+| Update Email | Contact Information |
+| Update Phone | Contact Information |
+
+**ISU Service Account Domains (9)**:
+- ISU_WQL_COPILOT: Workday Accounts, Custom Report Creation, Person Data: Work Email, Worker Data: Current Staffing Info, Worker Data: Worker ID, Setup: Tenant Setup - Reporting
+- ISU_Generic_COPILOT: Integration Build, Job Information, Setup: Compensation Packages
 
 ### Content Validation
 - SharePoint knowledge sources optimization
@@ -128,6 +175,71 @@ Test-ESSConfiguration
 Test-ESSPublishingPrerequisites
 ```
 
+### Workday Workflow Testing
+Test all 17 ESS pre-configured workflows directly against Workday SOAP APIs:
+```powershell
+# Test all workflows with Basic Auth
+.\Test-WorkdayWorkflows.ps1
+
+# Skip write tests in production (safe mode)
+.\Test-WorkdayWorkflows.ps1 -SkipWriteTests
+```
+
+**Workflows Tested:**
+- **Read (15)**: Employee ID, Company Code, Cost Center, Hire Date, Employment Info, Position Number, Service Anniversary, National IDs, Passports, Visas, Language Info, Certifications, Base Compensation, Compensation Ratio, Emergency Contact
+- **Write (2)**: Update Email, Update Phone
+
+**Example Output:**
+```
+Testing Employee ID... [PASS]
+Testing Company Code... [PASS]
+Testing Compensation... [FAIL] Permission Denied
+Testing Emergency Contact... [PASS*] (API works, no data found)
+```
+
+### Workday SSO Configuration
+Validate the 4 required Power Platform connections:
+```powershell
+# Interactive mode (prompts for each connection)
+.\Test-WorkdaySSOConfiguration.ps1 -EnvironmentId "your-env-id"
+
+# Non-interactive mode (for automation)
+.\Test-WorkdaySSOConfiguration.ps1 -EnvironmentId "your-env-id" `
+    -OAuthUserConnection "oauth user" `
+    -ISUWQLConnection "isu wql entra" `
+    -ISUGenericConnection "isu generic entra" `
+    -SkipPrompts
+```
+
+### Workday SSO Connectivity
+Test OAuth Device Code Flow with Entra ID:
+```powershell
+# Requires: Entra ID Enterprise App with API permissions configured
+.\Test-WorkdaySSOConnectivity.ps1
+
+# Script prompts for:
+# - Tenant ID
+# - Client ID (Enterprise App)
+# - App ID URI (from Workday Enterprise App)
+```
+
+**Prerequisites for SSO Testing:**
+1. Workday Enterprise App registered in Entra ID
+2. API permissions granted (requires Entra Admin)
+3. App ID URI configured (typically: `https://wd2-impl-services1.workday.com/<tenant>`)
+
+### Copilot Agent Testing
+```powershell
+# Test agent responses
+.\Test-CopilotAgentResponse.ps1 -EnvironmentId "your-env-id" -AgentName "ESS Agent"
+```
+
+### ServiceNow Connectivity
+```powershell
+# Validate ServiceNow integration
+.\Test-ServiceNowConnectivity.ps1 -InstanceUrl "https://yourinstance.service-now.com"
+```
+
 ## Validation Report Output
 
 Each validation produces:
@@ -182,5 +294,40 @@ For questions or issues:
 4. Contact your Power Platform administrator
 
 ## Version History
+
+- **v1.5.0** - Workday Workflow Testing
+  - NEW: `Test-WorkdayWorkflows.ps1` - Tests ALL 17 ESS workflows via SOAP API
+  - Tests 15 Read workflows + 2 Write workflows with [PASS]/[FAIL] output
+  - `-SkipWriteTests` flag for production safety
+  - Identifies which security domains need to be granted
+
+- **v1.4.1** - SSO Configuration UX Overhaul
+  - `Test-WorkdaySSOConfiguration.ps1` v2.0 - Prompt-and-confirm approach
+  - Auto-detects 4 required connections, lets you confirm or correct
+  - New CLI parameters for automation (`-SkipPrompts`, connection name params)
+
+- **v1.4.0** - SSO Security Domain Documentation
+  - NEW: `Test-WorkdaySSOConfiguration.ps1` - Deep SSO diagnostic tool
+  - Documents all 17 ESS workflows with required Workday security domains
+  - Generates printable checklist for Workday Administrator
+  - PII flagging for sensitive data (National IDs, Passports, Visas, Emergency Contacts)
+
+- **v1.3.1** - Agent Selection & Output Improvements
+  - Simplified agent selection UX (2 options vs 4)
+  - Enhanced CA Policy output (shows actual policy names)
+  - Enhanced ServiceNow flow listing (HRSD/ITSM grouping)
+  - Standalone WorkdaySuite execution via dot-sourcing
+  - Fixed flow matching bug for ESS patterns
+
+- **v1.3.0** - Workday SOAP Testing
+  - NEW: `Test-WorkdayConnectivity.ps1` - Endpoint and auth validation
+  - NEW: `Test-WorkdaySSOConnectivity.ps1` - OAuth Device Code Flow testing
+  - NEW: `Test-WorkdayConnectionReferences.ps1` - Validates 19 connection references
+
+- **v1.2.0** - Connectivity Test Suite
+  - Added `ConnectivityTests/` folder structure
+  - Config-driven testing (`prod-tests.json`, `test-tests.json`)
+  - `Test-CopilotAgentResponse.ps1` for agent validation
+  - `Test-ServiceNowConnectivity.ps1` for HRSD/ITSM
 
 - **v1.0.0** - Initial release with comprehensive validation coverage for ESS deployment

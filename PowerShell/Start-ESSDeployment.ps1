@@ -135,7 +135,7 @@ function Show-DeploymentBanner {
     Write-Host ""
     Write-Host "╔════════════════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
     Write-Host "║        ESS PHASED DEPLOYMENT WIZARD - v1.0.0                           ║" -ForegroundColor Cyan
-    Write-Host "║        Step-by-step validation aligned to deployment guide            ║" -ForegroundColor Cyan
+    Write-Host "║        Step-by-step validation aligned to deployment guide             ║" -ForegroundColor Cyan
     Write-Host "╚════════════════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
     Write-Host ""
 }

@@ -54,7 +54,7 @@ $script:DiscoveredConnections = @()
     Test-ESSDeploymentReadiness -Scope Prerequisites -OutputFormat JSON -ExportPath "C:\Validation\results.json"
 
 .EXAMPLE
-    Test-ESSDeploymentReadiness -AgentName "Employee Self-Service Demo" -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+    Test-ESSDeploymentReadiness -AgentName "Employee Self-Service" -EnvironmentId "00000000-0000-0000-0000-000000000000"
     # Validates only components related to the specified agent (solution-scoped)
 #>
 function Test-ESSDeploymentReadiness {

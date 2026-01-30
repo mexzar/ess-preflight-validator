@@ -29,7 +29,7 @@
     Skip interactive prompts (use with connection name parameters).
 
 .EXAMPLE
-    Test-WorkdaySSOConfiguration -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+    Test-WorkdaySSOConfiguration -EnvironmentId "00000000-0000-0000-0000-000000000000"
 
 .EXAMPLE
     Test-WorkdaySSOConfiguration -EnvironmentId $envId -OAuthUserConnection "oauth user" -ISUWQLConnection "isu wql entra" -ISUGenericConnection "isu generic entra" -SkipPrompts

@@ -13,7 +13,7 @@ cd C:\ESS-PreFlight-Validator\PowerShell
 ## Features
 
 ### ✅ Auto-Detection
-- Detects your current user (joquinn@contoso.com)
+- Detects your current user (admin@contoso.com)
 - Finds your tenant ID automatically
 - Remembers your last validation settings
 
@@ -22,7 +22,7 @@ cd C:\ESS-PreFlight-Validator\PowerShell
 - Remembers:
   - Tenant ID
   - Environment selection
-  - Agent name (Employee Self-Service IT (Preview)Sandbox)
+  - Agent name (Employee Self-Service)
   - Last used timestamp
 - Keeps last 5 profiles automatically
 
@@ -116,8 +116,8 @@ Same comprehensive validation as ESS-Validator.psm1:
 ║     Interactive validation for Employee Self-Service           ║
 ╚════════════════════════════════════════════════════════════════╝
 
-✓ Detected user: joquinn@contoso.com
-✓ Found saved profile: 'ESS_Sandbox - 2025-12-29' (last used 2025-12-29 18:06:23)
+✓ Detected user: admin@contoso.com
+✓ Found saved profile: 'ESS_Production - 2026-01-30' (last used 2026-01-30 09:30:00)
 
 Use saved profile? [Y/n]: Y
 
@@ -151,7 +151,7 @@ Validation Complete!
 🚨 Critical Issues Found:
    • PRE-002: No Copilot Studio licenses found for environment makers
 
-📄 Report saved: C:\Users\joquinn\Desktop\ESS-Reports\ESS-Validation-20251229-180845.html
+📄 Report saved: C:\Users\YourUsername\Desktop\ESS-Reports\ESS-Validation-20260130-093000.html
 
 Open report in browser? [Y/n]: Y
 

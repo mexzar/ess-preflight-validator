@@ -18,7 +18,7 @@
     Power Platform environment ID
 
 .EXAMPLE
-    .\Test-AgentDiscovery.ps1 -AgentName "Employee Self-Service Demo" -EnvironmentId "c3446975-d597-e5b4-8724-d5be9e5c4303"
+    .\Test-AgentDiscovery.ps1 -AgentName "Employee Self-Service" -EnvironmentId "00000000-0000-0000-0000-000000000000"
 
 .NOTES
     Author: ESS Validator Team
@@ -29,10 +29,10 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory = $false)]
-    [string]$AgentName = "Employee Self-Service Demo",
+    [string]$AgentName = "Employee Self-Service",
 
-    [Parameter(Mandatory = $false)]
-    [string]$EnvironmentId = "c3446975-d597-e5b4-8724-d5be9e5c4303"
+    [Parameter(Mandatory = $true)]
+    [string]$EnvironmentId
 )
 
 #region Helper Functions

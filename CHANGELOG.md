@@ -4,6 +4,42 @@ All notable changes to ESS Pre-flight Validator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.0] - 2026-02-04
+
+### Added
+- **CAPE/FastTrack Getting Started Guide** - Comprehensive 7-page documentation
+  - Complete guide for internal teams: CAPE, FastTrack, Engineering
+  - Covers all scripts: ESS-Validator, Start-ESSValidation, Start-ESSDeployment, WorkdaySuite
+  - Troubleshooting matrix, prerequisites, Entra ID permissions
+  - Located at: `Documentation/CAPE-FT-Getting-Started.md`
+
+- **CSV Export for Standalone Workday Validation**
+  - New `-ExportPath` parameter for `Invoke-WorkdayValidationSuite.ps1`
+  - Auto-generates timestamped CSV files
+  - Clean summary banner at end of run
+  - Tip shown when export path not provided
+
+### Fixed
+- **Export-ModuleMember errors** - WorkdaySuite scripts now work standalone
+  - Wrapped `Export-ModuleMember` in conditional check
+  - Scripts can be dot-sourced or run directly without errors
+  - Affected: `Test-WorkdayEnvironmentVariables.ps1`, `Test-WorkdayConnectionReferences.ps1`, `Test-WorkdayFlowStatus.ps1`
+
+### Changed
+- Cleaned all lab/personal references from codebase
+  - Environment IDs replaced with generic `00000000-0000-0000-0000-000000000000`
+  - User references changed to `admin@contoso.com`
+  - Ready for internal distribution
+
+- Username prompt simplified in `Test-WorkdayWorkflows.ps1`
+  - Changed from "Enter ISU Username" to "Enter Username"
+
+### Documentation
+- Updated all example environment IDs to generic placeholders
+- Added Workday Validator Agent Guide (`PowerPlatform/Workday-Validator-Agent-Guide.md`)
+
+---
+
 ## [1.5.0] - 2026-01-22
 
 ### Added
