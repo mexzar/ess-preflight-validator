@@ -39,32 +39,6 @@
     Author: ESS Pre-flight Validator
 #>
 
-param(
-    [Parameter(Mandatory = $true)]
-    [string]$EnvironmentId,
-    
-    [Parameter(Mandatory = $false)]
-    [string]$OAuthUserConnection,
-    
-    [Parameter(Mandatory = $false)]
-    [string]$ISUWQLConnection,
-    
-    [Parameter(Mandatory = $false)]
-    [string]$ISUGenericConnection,
-    
-    [Parameter(Mandatory = $false)]
-    [string]$DataverseConnection,
-    
-    [Parameter(Mandatory = $false)]
-    [switch]$GenerateChecklist,
-    
-    [Parameter(Mandatory = $false)]
-    [switch]$SkipPrompts,
-    
-    [Parameter(Mandatory = $false)]
-    [string]$OutputPath = "."
-)
-
 #region Security Domain Definitions
 $script:WorkdaySecurityDomains = @{
     ReadWorkflows = @(
@@ -492,17 +466,3 @@ FINAL STEP: Run "Activate Pending Security Policy Changes" in Workday
 
 # Export for module use (silently ignore when dot-sourced)
 try { Export-ModuleMember -Function Test-WorkdaySSOConfiguration } catch { }
-
-# Run if called directly as a script
-if ($MyInvocation.InvocationName -ne '.') {
-    $params = @{ EnvironmentId = $EnvironmentId }
-    if ($OAuthUserConnection) { $params.OAuthUserConnection = $OAuthUserConnection }
-    if ($ISUWQLConnection) { $params.ISUWQLConnection = $ISUWQLConnection }
-    if ($ISUGenericConnection) { $params.ISUGenericConnection = $ISUGenericConnection }
-    if ($DataverseConnection) { $params.DataverseConnection = $DataverseConnection }
-    if ($GenerateChecklist) { $params.GenerateChecklist = $true }
-    if ($SkipPrompts) { $params.SkipPrompts = $true }
-    $params.OutputPath = $OutputPath
-    
-    Test-WorkdaySSOConfiguration @params
-}

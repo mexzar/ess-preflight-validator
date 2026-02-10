@@ -185,7 +185,7 @@ function Invoke-WorkdayValidationSuite {
     # ═══════════════════════════════════════════════════════════════════
     if ($IncludeSSODiagnostics) {
         Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
-        Write-Host "  🔐 Step 5/$totalSteps`: SSO Configuration & Security Domains" -ForegroundColor Cyan
+        Write-Host "  🔐 Step 5/$totalSteps`: SSO Configuration and Security Domains" -ForegroundColor Cyan
         Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
         
         $ssoParams = @{

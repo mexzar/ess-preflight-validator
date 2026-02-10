@@ -4,6 +4,39 @@ All notable changes to ESS Pre-flight Validator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0] - 2026-02-10
+
+### Added
+- **Session Mode** - Completely redesigned user experience
+  - Modules load ONCE at startup (5-10 minutes)
+  - All subsequent tests run INSTANTLY
+  - No more waiting between tests
+  - Single PS7 window stays open for multiple operations
+
+- **ESS-Validator.exe** - One-click launcher for customers
+  - Double-click to start
+  - Automatically launches PowerShell 7 session
+  - Professional loading screen with progress
+
+- **Workday Sub-Menu** - Expanded test options
+  - [A] Run All Tests - Complete validation suite
+  - [1] Connection References - Check connector authentication
+  - [2] Environment Variables - RaaS account configuration
+  - [3] Flow Status - Workday flows enabled/disabled
+  - [4] SSO Configuration - Security domain checklist (Admin)
+  - [5] Basic User Test - Test Workday API with credentials
+  - [6] SSO Connectivity - Test Azure AD OAuth flow (end-user)
+
+### Changed
+- Updated time estimate from "3-5 minutes" to "5-10 minutes" (more realistic)
+- Suppressed PowerApps module "unapproved verbs" warnings
+- Improved menu alignment across all screens
+- Removed Sign In/Verify steps from main menu (handled automatically)
+
+### Fixed
+- Fixed `Test-WorkdaySSOConfiguration.ps1` script-level param causing prompts
+- Fixed stray character in `Test-WorkdaySSOConnectivity.ps1`
+
 ## [1.6.0] - 2026-02-04
 
 ### Added

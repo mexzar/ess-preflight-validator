@@ -1,4 +1,4 @@
-c<#
+<#
 .SYNOPSIS
     Tests Workday SSO connectivity for end users via Azure AD OAuth
 .DESCRIPTION
