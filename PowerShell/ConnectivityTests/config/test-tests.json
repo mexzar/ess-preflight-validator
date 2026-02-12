@@ -10,7 +10,7 @@
     },
     "sso": {
       "tenantId": "87654321-4321-4321-4321-210987654321",
-      "description": "Test Azure AD tenant ID (M365CPI82179849.onmicrosoft.com)"
+      "description": "Test Azure AD tenant ID (yourcompany-test.onmicrosoft.com)"
     }
   },
   "servicenow": {
