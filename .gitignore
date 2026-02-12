@@ -3,9 +3,10 @@
 *.user
 *.suo
 
-# Test results and reports
+# Test results and reports - may contain sensitive environment data
 ESS-Reports/
 *-Reports/
+*.html
 
 # Temporary files
 *.tmp
@@ -23,10 +24,25 @@ profiles.json
 # Backup files
 *.bak
 *-Copy.psm1
+backup-log.txt
 
 # Build artifacts
 *.zip
 
+# Compiled executable - users should build their own
+ESS-Validator.exe
+
+# Internal planning documents - contain customer names
+PRODUCT-BACKLOG.md
+
+# Session management - internal process docs
+SESSION-MANAGEMENT.md
+VERSION-CONTROL-GUIDE.md
+
 # OS files
 Thumbs.db
 .DS_Store
+
+# Editor files
+*.code-workspace
+.vscode/
