@@ -113,6 +113,41 @@ Before submitting a PR, verify:
 - Focus on constructive feedback
 - Help others learn and grow
 
+## Release Process (Maintainers)
+
+When ready to publish a new version:
+
+### 1. Update Version
+```powershell
+.\Update-Version.ps1 -NewVersion "1.8.0" -ReleaseNotes "Added feature X, fixed Y"
+```
+
+### 2. Build the Executable
+```powershell
+# Ensure ps2exe module is installed
+Install-Module -Name ps2exe -Scope CurrentUser
+
+# Build the launcher
+Invoke-ps2exe -InputFile .\ESS-Validator-Launcher.ps1 -OutputFile .\ESS-Validator.exe -NoConsole
+```
+
+### 3. Create GitHub Release
+```powershell
+# Tag the release
+git tag -a v1.8.0 -m "Release v1.8.0"
+git push origin v1.8.0
+```
+
+### 4. Attach Binaries
+1. Go to GitHub → Releases → "Draft a new release"
+2. Select the tag (e.g., `v1.8.0`)
+3. Title: `v1.8.0 - [Brief description]`
+4. Paste release notes from CHANGELOG.md
+5. **Drag and drop `ESS-Validator.exe`** into the assets area
+6. Publish release
+
+> **Why not commit the exe?** Binary files bloat git history. Attaching to releases keeps the repo fast while providing users with ready-to-run downloads.
+
 ## Questions?
 
 Open a GitHub Issue with the label `question`.
