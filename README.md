@@ -4,24 +4,29 @@
 
 ### Download
 
-**[Download Latest Release](../../releases/latest)** - Get the ready-to-run `ESS-Validator.exe`
-
-| Asset | Description |
-|-------|-------------|
-| `ESS-Validator.exe` | Double-click launcher - no installation required |
-| `Source code (zip)` | Full PowerShell scripts for customization |
+**[Download Latest Release](../../releases/latest)** - Get `ESS-Validator-v1.7.0.zip`
 
 ### Requirements
 - Windows 10/11 or Windows Server 2019+
-- PowerShell 7.x (installer included if needed)
+- PowerShell 7.x (will prompt to install if missing)
 - Microsoft 365 admin credentials for validation
 
-### Run It
-1. Download `ESS-Validator.exe` from the latest release
-2. Double-click to launch
-3. Follow the menu to run validations
+### Setup
+1. Download `ESS-Validator-v1.7.0.zip` from the latest release
+2. Extract to `C:\ESS-Validator\`
+3. Double-click **ESS-Validator.exe**
+4. Follow the menu to run validations
 
-> **Note**: Windows SmartScreen may prompt on first run. Click "More info" → "Run anyway" (the exe is unsigned open source software).
+### ⚠️ Windows SmartScreen
+Because the exe is unsigned open source software, Windows SmartScreen may block it on first run:
+
+1. Click **"More info"**
+2. Click **"Run anyway"**
+
+This only happens once. If you prefer not to bypass SmartScreen, you can run directly from PowerShell 7 instead:
+```powershell
+pwsh -ExecutionPolicy Bypass -File "C:\ESS-Validator\ESS-Validator-Session.ps1"
+```
 
 ---
 
