@@ -55,7 +55,8 @@ if (-not (Test-Path $sessionScript)) {
     exit 1
 }
 
-# Launch PowerShell 7 with the session script (no launcher window needed)
-Start-Process pwsh -ArgumentList "-NoExit", "-File", $sessionScript, "-ScriptRoot", $ScriptRoot
+# Launch PowerShell 7 with the session script
+# -ExecutionPolicy Bypass is required for downloaded/unsigned scripts
+Start-Process pwsh -ArgumentList "-ExecutionPolicy", "Bypass", "-NoExit", "-File", $sessionScript, "-ScriptRoot", $ScriptRoot
 
 exit 0
