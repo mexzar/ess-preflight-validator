@@ -32,9 +32,14 @@ $azureAppId = Read-Host "Enter Entra ID App ID (Workday Enterprise App Client ID
 $appIdUri = Read-Host "Enter Workday App ID URI (e.g., http://www.workday.com/your_tenant)"
 $testUserUPN = Read-Host "Enter test user UPN (e.g., user@contoso.com)"
 $tenantId = Read-Host "Enter Entra ID Tenant ID (or press Enter to use 'organizations')"
+$workdayBaseUrl = Read-Host "Enter Workday base URL (or press Enter for default: https://wd2-impl-services1.workday.com)"
 
 if ([string]::IsNullOrWhiteSpace($tenantId)) {
     $tenantId = "organizations"
+}
+
+if ([string]::IsNullOrWhiteSpace($workdayBaseUrl)) {
+    $workdayBaseUrl = "https://wd2-impl-services1.workday.com"
 }
 
 # Build scope from App ID URI
@@ -49,6 +54,7 @@ Write-Host "Entra ID App: $azureAppId" -ForegroundColor Gray
 Write-Host "App ID URI: $appIdUri" -ForegroundColor Gray
 Write-Host "Scope: $workdayScope" -ForegroundColor Gray
 Write-Host "Test User: $testUserUPN" -ForegroundColor Gray
+Write-Host "Workday Base URL: $workdayBaseUrl" -ForegroundColor Gray
 Write-Host "Entra ID Tenant: $tenantId" -ForegroundColor Gray
 Write-Host ""
 
@@ -183,7 +189,7 @@ xmlns:xsd="http://www.w3.org/2001/XMLSchema">
 </env:Envelope>
 "@
 
-$workdayUrl = "https://wd2-impl-services1.workday.com/ccx/service/$workdayTenant/Human_Resources/v42.0"
+$workdayUrl = "$workdayBaseUrl/ccx/service/$workdayTenant/Human_Resources/v42.0"
 
 $headers = @{
     "Content-Type" = "application/xml"

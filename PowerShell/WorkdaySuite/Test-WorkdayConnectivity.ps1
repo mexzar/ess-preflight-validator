@@ -9,6 +9,11 @@ if ([string]::IsNullOrWhiteSpace($effectiveDate)) {
     $effectiveDate = Get-Date -Format "yyyy-MM-dd"
 }
 
+$workdayBaseUrl = Read-Host "Enter Workday base URL (or press Enter for default: https://wd2-impl-services1.workday.com)"
+if ([string]::IsNullOrWhiteSpace($workdayBaseUrl)) {
+    $workdayBaseUrl = "https://wd2-impl-services1.workday.com"
+}
+
 $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($password)
 $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
 
@@ -48,7 +53,7 @@ xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-s
 </env:Envelope>
 "@
 
-$workdayUrl = "https://wd2-impl-services1.workday.com/ccx/service/$workdayTenant/Human_Resources/v42.0"
+$workdayUrl = "$workdayBaseUrl/ccx/service/$workdayTenant/Human_Resources/v42.0"
 
 $headers = @{
     "Content-Type" = "application/xml"

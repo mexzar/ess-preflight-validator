@@ -31,9 +31,14 @@ $workdayTenant = Read-Host "Enter Workday Tenant (e.g., contoso_impl)"
 $azureAppId = Read-Host "Enter Azure AD App ID (Workday Enterprise App Client ID)"
 $testUserUPN = Read-Host "Enter test user UPN (e.g., user@contoso.com)"
 $tenantId = Read-Host "Enter Azure AD Tenant ID (or press Enter to use 'organizations')"
+$workdayBaseUrl = Read-Host "Enter Workday base URL (or press Enter for default: https://wd2-impl-services1.workday.com)"
 
 if ([string]::IsNullOrWhiteSpace($tenantId)) {
     $tenantId = "organizations"
+}
+
+if ([string]::IsNullOrWhiteSpace($workdayBaseUrl)) {
+    $workdayBaseUrl = "https://wd2-impl-services1.workday.com"
 }
 
 Write-Host ""
@@ -41,6 +46,7 @@ Write-Host "══════════════════════�
 Write-Host "Configuration Summary" -ForegroundColor Cyan
 Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host "Workday Tenant: $workdayTenant" -ForegroundColor Gray
+Write-Host "Workday Base URL: $workdayBaseUrl" -ForegroundColor Gray
 Write-Host "Azure AD App: $azureAppId" -ForegroundColor Gray
 Write-Host "Test User: $testUserUPN" -ForegroundColor Gray
 Write-Host "Azure AD Tenant: $tenantId" -ForegroundColor Gray
@@ -51,7 +57,7 @@ Write-Host "🔐 Step 1: Initiating Azure AD authentication..." -ForegroundColor
 Write-Host "   User will authenticate as: $testUserUPN" -ForegroundColor Gray
 Write-Host ""
 
-$workdayScope = "https://wd2-impl-services1.workday.com/.default"
+$workdayScope = "$workdayBaseUrl/.default"
 $deviceCodeUrl = "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/devicecode"
 $tokenUrl = "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token"
 
@@ -178,7 +184,7 @@ xmlns:xsd="http://www.w3.org/2001/XMLSchema">
 </env:Envelope>
 "@
 
-$workdayUrl = "https://wd2-impl-services1.workday.com/ccx/service/$workdayTenant/Human_Resources/v42.0"
+$workdayUrl = "$workdayBaseUrl/ccx/service/$workdayTenant/Human_Resources/v42.0"
 
 $headers = @{
     "Content-Type" = "application/xml"

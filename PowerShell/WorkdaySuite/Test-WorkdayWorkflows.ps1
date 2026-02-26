@@ -38,6 +38,7 @@ param(
     [string]$Username,
     [SecureString]$Password,
     [string]$TestEmployeeId,
+    [string]$WorkdayBaseUrl,
     [switch]$SkipWriteTests
 )
 
@@ -46,6 +47,10 @@ if (-not $WorkdayTenant) { $WorkdayTenant = Read-Host "Enter Workday Tenant (e.g
 if (-not $Username) { $Username = Read-Host "Enter Username (without @tenant)" }
 if (-not $Password) { $Password = Read-Host "Enter ISU Password" -AsSecureString }
 if (-not $TestEmployeeId) { $TestEmployeeId = Read-Host "Enter Test Employee ID (e.g., 21508)" }
+if (-not $WorkdayBaseUrl) {
+    $input = Read-Host "Enter Workday base URL (or press Enter for default: https://wd2-impl-services1.workday.com)"
+    $WorkdayBaseUrl = if ([string]::IsNullOrWhiteSpace($input)) { "https://wd2-impl-services1.workday.com" } else { $input }
+}
 
 $BSTR = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($Password)
 $plainPassword = [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($BSTR)
@@ -78,7 +83,7 @@ $Operation
 </env:Envelope>
 "@
     
-    $url = "https://wd2-impl-services1.workday.com/ccx/service/$WorkdayTenant/$Service/$Version"
+    $url = "$WorkdayBaseUrl/ccx/service/$WorkdayTenant/$Service/$Version"
     
     try {
         $response = Invoke-WebRequest -Uri $url -Method Post -Headers @{"Content-Type"="application/xml"} -Body $soapEnvelope -ErrorAction Stop
