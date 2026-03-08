@@ -4,7 +4,7 @@
 
 ### Download
 
-**[Download Latest Release](../../releases/latest)** - Get `ESS-Validator-v1.8.0.zip`
+**[Download Latest Release](../../releases/latest)** - Get `ESS-Validator-v1.7.0.zip`
 
 ### Requirements
 - Windows 10/11 or Windows Server 2019+
@@ -12,7 +12,7 @@
 - Microsoft 365 admin credentials for validation
 
 ### Setup
-1. Download `ESS-Validator-v1.8.0.zip` from the latest release
+1. Download `ESS-Validator-v1.7.0.zip` from the latest release
 2. Extract to `C:\ESS-Validator\`
 3. Double-click **ESS-Validator.exe**
 4. Follow the menu to run validations
