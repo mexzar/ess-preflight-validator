@@ -18,23 +18,24 @@
       "reportOwner": "ISU_WQL_COPILOT",
       "expectedColumns": [
         "Employee_ID",
-        "Legal_Name",
-        "Legal_First_Name",
-        "Legal_Last_Name",
+        "First_Name",
+        "Last_Name",
         "Work_Email",
-        "Manager_Name",
-        "Job_Title",
-        "Business_Title",
-        "Location",
-        "Cost_Center",
-        "Company",
-        "Supervisory_Organization",
-        "Worker_Type"
+        "User_Name",
+        "Country_Code",
+        "Company_Code",
+        "Is_Manager",
+        "Is_People_Manager",
+        "Level",
+        "Display_Language",
+        "Locale",
+        "Mgr_Sup_Org_Id"
       ],
       "expectedCalcFields": [
-        "Is_Manager",
-        "Is_Terminated",
-        "Has_Direct_Reports"
+        "Country_Code",
+        "Level",
+        "Mgr_Sup_Org_Id",
+        "Worker_Type"
       ]
     }
   },

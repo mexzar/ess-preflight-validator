@@ -62,7 +62,7 @@ function Test-ServiceNowOAuthConfig {
     )
 
     # ── Documentation link shared across all checkpoints ─────────────────
-    $docLink = 'https://learn.microsoft.com/en-us/power-platform/admin/connect-servicenow'
+    $docLink = 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/servicenow-hrsd-itsm'
 
     # ── Results accumulator ──────────────────────────────────────────────
     $results = @()
@@ -336,17 +336,26 @@ function Test-ServiceNowOAuthConfig {
     # ══════════════════════════════════════════════════════════════════════
     Write-DiagStep 'SN-OAUTH-003: Validating redirect URL for Power Platform...' -Status 'Info'
 
-    $expectedCallback = 'https://global.consent.azure-apim.net/redirect'
+    $expectedCallbacks = @(
+        'https://gcs.office.com/v1.0/admin/oauth/callback',
+        'https://gcsgcc.office.com/v1.0/admin/oauth/callback',
+        'https://global.consent.azure-apim.net/redirect'
+    )
 
     if ($oauthEntities -and @($oauthEntities).Count -gt 0) {
         $foundValidRedirect = $false
+        $matchedUrl = ''
         foreach ($entity in $oauthEntities) {
             $redirectUrl = $entity.redirect_url
-            if ($redirectUrl -and $redirectUrl -like "*$expectedCallback*") {
-                Write-DiagStep "  Redirect URL contains expected callback: $redirectUrl" -Status 'Success'
-                $foundValidRedirect = $true
-                break
+            foreach ($cb in $expectedCallbacks) {
+                if ($redirectUrl -and $redirectUrl -like "*$cb*") {
+                    Write-DiagStep "  Redirect URL contains expected callback: $redirectUrl" -Status 'Success'
+                    $foundValidRedirect = $true
+                    $matchedUrl = $cb
+                    break
+                }
             }
+            if ($foundValidRedirect) { break }
         }
 
         if ($foundValidRedirect) {
@@ -355,7 +364,7 @@ function Test-ServiceNowOAuthConfig {
                 Category          = 'ServiceNow'
                 Priority          = 'High'
                 Status            = 'Passed'
-                Result            = "Redirect URL contains expected Power Platform callback ($expectedCallback)"
+                Result            = "Redirect URL contains expected callback ($matchedUrl)"
                 Remediation       = ''
                 DocumentationLink = $docLink
                 Stage             = 'Diagnosis'
@@ -372,8 +381,8 @@ function Test-ServiceNowOAuthConfig {
                 Category          = 'ServiceNow'
                 Priority          = 'High'
                 Status            = 'Failed'
-                Result            = "Redirect URL does not contain '$expectedCallback'. Found: $actualUrls"
-                Remediation       = "Update the OAuth Application Registry entry in ServiceNow: set Redirect URL to '$expectedCallback'. Navigate to System OAuth > Application Registry and edit the relevant entry."
+                Result            = "Redirect URL does not match expected values. Found: $actualUrls"
+                Remediation       = "Update the OAuth Application Registry entry in ServiceNow: set Redirect URL to 'https://gcs.office.com/v1.0/admin/oauth/callback' (Enterprise) or 'https://gcsgcc.office.com/v1.0/admin/oauth/callback' (GCC). Navigate to System OAuth > Application Registry."
                 DocumentationLink = $docLink
                 Stage             = 'Diagnosis'
                 RootCause         = "Power Platform callback URL is missing from the OAuth entity redirect_url field"
@@ -487,11 +496,11 @@ function Test-ServiceNowOAuthConfig {
 
         foreach ($p in $oidcProviders) {
             $userClaim = $p.user_claim
-            if ($userClaim -and ($userClaim -eq 'email' -or $userClaim -eq 'sub')) {
+            if ($userClaim -and ($userClaim -eq 'oid' -or $userClaim -eq 'email' -or $userClaim -eq 'sub')) {
                 Write-DiagStep "  Provider '$($p.name)' user_claim='$userClaim'" -Status 'Success'
             }
             elseif ($userClaim) {
-                $claimIssues += "Provider '$($p.name)' has user_claim='$userClaim' (expected 'email' or 'sub')"
+                $claimIssues += "Provider '$($p.name)' has user_claim='$userClaim' (expected 'oid' per MS Learn docs)"
             }
             else {
                 $claimIssues += "Provider '$($p.name)' has no user_claim configured"
@@ -504,7 +513,7 @@ function Test-ServiceNowOAuthConfig {
                 Category          = 'ServiceNow'
                 Priority          = 'High'
                 Status            = 'Passed'
-                Result            = 'All OIDC providers have a valid user claim mapping (email or sub)'
+                Result            = 'All OIDC providers have a valid user claim mapping (oid, email, or sub)'
                 Remediation       = ''
                 DocumentationLink = $docLink
                 Stage             = 'Diagnosis'
@@ -522,7 +531,7 @@ function Test-ServiceNowOAuthConfig {
                 Priority          = 'High'
                 Status            = 'Failed'
                 Result            = "User claim mapping issue: $issueDetail"
-                Remediation       = "In ServiceNow > System OAuth > OIDC Provider Configuration, set the User Claim field to 'email' (preferred) or 'sub'. This tells ServiceNow which JWT claim to use for user identity matching."
+                Remediation       = "In ServiceNow > System OAuth > OIDC Provider Configuration, set the User Claim field to 'oid' (per MS Learn ESS docs) with User Field = 'User ID'. For Entra ID User Login auth, 'upn' is also acceptable."
                 DocumentationLink = $docLink
                 Stage             = 'Diagnosis'
                 RootCause         = 'Incorrect or missing user_claim prevents ServiceNow from mapping the OIDC token to a local user account'

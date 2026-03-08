@@ -81,24 +81,25 @@ function Test-WorkdayReportStructure {
 
     $requiredColumns = @(
         'Employee_ID',
-        'Legal_Name',
-        'Legal_First_Name',
-        'Legal_Last_Name',
+        'First_Name',
+        'Last_Name',
         'Work_Email',
-        'Manager_Name',
-        'Job_Title',
-        'Business_Title',
-        'Location',
-        'Cost_Center',
-        'Company',
-        'Supervisory_Organization',
-        'Worker_Type'
+        'User_Name',
+        'Country_Code',
+        'Company_Code',
+        'Is_Manager',
+        'Is_People_Manager',
+        'Level',
+        'Display_Language',
+        'Locale',
+        'Mgr_Sup_Org_Id'
     )
 
     $calculatedFields = @(
-        'Is_Manager',
-        'Is_Terminated',
-        'Has_Direct_Reports'
+        'Country_Code',
+        'Level',
+        'Mgr_Sup_Org_Id',
+        'Worker_Type'
     )
     #endregion
 
@@ -370,7 +371,7 @@ function Test-WorkdayReportStructure {
             Category          = 'Workday'
             Priority          = 'High'
             Status            = 'Passed'
-            Result            = 'All 3 calculated fields present (Is_Manager, Is_Terminated, Has_Direct_Reports)'
+            Result            = 'All 4 calculated fields present (Country_Code, Level, Mgr_Sup_Org_Id, Worker_Type)'
             Remediation       = ''
             DocumentationLink = $docLink
             Stage             = 'Detection'
@@ -378,7 +379,7 @@ function Test-WorkdayReportStructure {
             Confidence        = ''
             GatingSignal      = 'No'
         }
-        Write-Host "   ✅ All 3 calculated fields found" -ForegroundColor Green
+        Write-Host "   ✅ All 4 calculated fields found" -ForegroundColor Green
     }
     else {
         $results += [PSCustomObject]@{
@@ -443,7 +444,7 @@ function Test-WorkdayReportStructure {
     #region WD-RPT-005 — Column Data Quality
     Write-Host "🔍 WD-RPT-005: Checking column data quality..." -ForegroundColor Cyan
 
-    $keyColumns = @('Employee_ID', 'Legal_Name', 'Work_Email', 'Job_Title', 'Company')
+    $keyColumns = @('Employee_ID', 'First_Name', 'Work_Email', 'User_Name', 'Company_Code')
     $emptyKeyColumns = @()
 
     if ($rowCount -gt 0 -and $reportEntries) {

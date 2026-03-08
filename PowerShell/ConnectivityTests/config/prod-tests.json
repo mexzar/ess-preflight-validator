@@ -16,12 +16,12 @@
       "reportName": "WD_User_Context",
       "reportOwner": "ISU_WQL_COPILOT",
       "expectedColumns": [
-        "Employee_ID", "Legal_Name", "Legal_First_Name", "Legal_Last_Name",
-        "Work_Email", "Manager_Name", "Job_Title", "Business_Title",
-        "Location", "Cost_Center", "Company", "Supervisory_Organization", "Worker_Type"
+        "Employee_ID", "First_Name", "Last_Name", "Work_Email",
+        "User_Name", "Country_Code", "Company_Code", "Is_Manager",
+        "Is_People_Manager", "Level", "Display_Language", "Locale", "Mgr_Sup_Org_Id"
       ],
-      "expectedCalcFields": ["Is_Manager", "Is_Terminated", "Has_Direct_Reports"],
-      "description": "RaaS report configuration for Workday User Context validation"
+      "expectedCalcFields": ["Country_Code", "Level", "Mgr_Sup_Org_Id", "Worker_Type"],
+      "description": "RaaS report configuration for Workday User Context validation per MS Learn docs"
     },
     "baseUrl": "https://wd2-impl-services1.workday.com"
   },

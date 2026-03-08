@@ -39,7 +39,7 @@ function Test-ServiceNowConnectionSharing {
     )
 
     $results = @()
-    $docLink = 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/servicenow'
+    $docLink = 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/servicenow-hrsd-itsm'
 
     # ── Self-contained authentication ────────────────────────────────────────
     Write-Host "`n  🔐 Verifying Power Platform session..." -ForegroundColor Cyan

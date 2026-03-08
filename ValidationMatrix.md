@@ -288,7 +288,7 @@
 | WD-RPT-001 | RaaS endpoint accessible | Critical | Detection | HTTP GET customreport2 | HTTP 200 | Yes |
 | WD-RPT-002 | Report returns data | Critical | Detection | XML response parse | Non-empty result set | Yes |
 | WD-RPT-003 | Required columns present (13) | Critical | Detection | XML column inspection | All 13 columns found | Yes |
-| WD-RPT-004 | Calculated fields present (3) | High | Detection | XML calc field check | Country_Code, Level, Mgr_Sup_Org_Id | Yes |
+| WD-RPT-004 | Calculated fields present (4) | High | Detection | XML calc field check | Country_Code, Level, Mgr_Sup_Org_Id, Worker_Type | Yes |
 | WD-RPT-005 | Report response time | Medium | Detection | Latency measurement | < 5 seconds | Advisory |
 
 ### 13. SkillsSpec — Workday Connection Sharing (High Priority)
