@@ -4,6 +4,45 @@ All notable changes to ESS Pre-flight Validator will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.0] - 2025-07-21
+
+### Added — SkillsSpec Skills Framework
+- **4-Stage Validation Model** (Detection → Diagnosis → Remediation → Prevention)
+  - `Add-ValidationResult` extended with `Stage`, `RootCause`, `Confidence`, `GatingSignal` fields
+  - HTML report updated with 8-column layout (Stage, Diagnosis/Remediation, Gating columns)
+  - All existing checks default to Detection stage (backward compatible)
+
+- **Workday Connector Readiness** (3 new scripts)
+  - `Test-WorkdayReportStructure.ps1` — validates RaaS report columns & calculated fields
+  - `Test-WorkdayConnectionSharing.ps1` — verifies connections shared with all users
+  - `Test-EntraWorkdaySSO.ps1` — Entra ID SSO validation (adaptive: automated or checklist)
+
+- **ServiceNow Connector Readiness** (4 new scripts)
+  - `Test-ServiceNowEndToEnd.ps1` — functional E2E tests (HRSD KB, HR cases, ITSM incidents)
+  - `Test-ServiceNowOAuthConfig.ps1` — deep OAuth/OIDC diagnostics (triggered on E2E failure)
+  - `Test-EntraServiceNowSSO.ps1` — Entra ID SSO validation for ServiceNow (adaptive)
+  - `Test-ServiceNowConnectionSharing.ps1` — ServiceNow connection sharing validation
+
+- **Topic End-to-End Testing** (1 new script)
+  - `Test-ESSTopicEndToEnd.ps1` — functional Copilot topic tests (Workday & ServiceNow flows)
+
+- **Connector Readiness Orchestrator**
+  - `Test-ESSConnectorReadiness` function in ESS-Validator.psm1
+  - New `ConnectorReadiness` scope in `Test-ESSDeploymentReadiness`
+
+- **Menu Enhancements**
+  - Workday sub-menu: [7] Report Structure, [8] Connection Sharing, [9] Entra SSO
+  - New ServiceNow Deep Dive sub-menu with 5 options
+  - Connectivity Suite: 4 new test options ([6]-[9])
+
+- **Config Extensions**
+  - `prod-tests.json`: Added `entra` section (app IDs, scopes) and `workday.raas` (report columns)
+
+### Changed
+- Every module is independently callable (different users may have different system permissions)
+- Enhanced `Test-WorkdayEnvironmentVariables.ps1` with 4-stage output fields
+- Workday Validation Suite orchestrator now includes report structure, connection sharing, and Entra SSO steps
+
 ## [1.7.0] - 2026-02-10
 
 ### Added

@@ -144,6 +144,10 @@ function Test-WorkdayEnvironmentVariables {
                     DocumentationLink = 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/workday#step-4-environment-variables'
                     VariableName      = $envVar.SchemaName
                     ExpectedDefault   = $envVar.DefaultValue
+                    Stage             = 'Detection'
+                    RootCause         = 'Cannot directly query Dataverse environment variable values without additional auth'
+                    Confidence        = 'Medium'
+                    GatingSignal      = 'Yes'
                 }
                 
                 Write-Host "  ⚠️  $($envVar.SchemaName)" -ForegroundColor Yellow
@@ -162,6 +166,10 @@ function Test-WorkdayEnvironmentVariables {
                     DocumentationLink = 'https://learn.microsoft.com/en-us/copilot/microsoft-365/employee-self-service/workday#step-4-environment-variables'
                     VariableName      = $envVar.SchemaName
                     ExpectedDefault   = $envVar.DefaultValue
+                    Stage             = 'Detection'
+                    RootCause         = ''
+                    Confidence        = ''
+                    GatingSignal      = 'Advisory'
                 }
                 
                 Write-Host "  ℹ️  $($envVar.SchemaName)" -ForegroundColor Gray

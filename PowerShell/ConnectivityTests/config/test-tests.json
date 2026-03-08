@@ -3,6 +3,7 @@
   "environment": "test",
   "workday": {
     "tenant": "yourcompany_sandbox1",
+    "baseUrl": "https://wd2-impl-services1.workday.com",
     "isu": {
       "username": "ESS_Integration_Test@yourcompany_sandbox1",
       "password": "REPLACE_WITH_TEST_PASSWORD",
@@ -11,6 +12,30 @@
     "sso": {
       "tenantId": "87654321-4321-4321-4321-210987654321",
       "description": "Test Azure AD tenant ID (yourcompany-test.onmicrosoft.com)"
+    },
+    "raas": {
+      "reportName": "WD_User_Context",
+      "reportOwner": "ISU_WQL_COPILOT",
+      "expectedColumns": [
+        "Employee_ID",
+        "Legal_Name",
+        "Legal_First_Name",
+        "Legal_Last_Name",
+        "Work_Email",
+        "Manager_Name",
+        "Job_Title",
+        "Business_Title",
+        "Location",
+        "Cost_Center",
+        "Company",
+        "Supervisory_Organization",
+        "Worker_Type"
+      ],
+      "expectedCalcFields": [
+        "Is_Manager",
+        "Is_Terminated",
+        "Has_Direct_Reports"
+      ]
     }
   },
   "servicenow": {
@@ -57,5 +82,13 @@
     "useKeyVault": false,
     "keyVaultName": "",
     "notes": "Test environment - using basic authentication for development convenience"
+  },
+  "entra": {
+    "workdayAppId": "4e4707ca-5f53-46a6-a819-f7765446e6ff",
+    "servicenowAppClientId": "c26b24aa-7874-4e06-ad55-7d06b1f79b63",
+    "requiredScopes": [
+      "Application.Read.All",
+      "Directory.Read.All"
+    ]
   }
 }

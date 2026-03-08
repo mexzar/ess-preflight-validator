@@ -281,6 +281,77 @@
 | LIMIT-007 | Licensing/billing awareness | High | Documentation review | Costs estimated | known-issues-limitations |
 | LIMIT-008 | Platform dependency awareness | Medium | Documentation review | Dependencies known | known-issues-limitations |
 
+### 12. SkillsSpec — Workday Report Structure (High Priority)
+
+| Checkpoint ID | Validation Item | Priority | Stage | Validation Method | Expected Result | Gating |
+|---------------|----------------|----------|-------|-------------------|-----------------|--------|
+| WD-RPT-001 | RaaS endpoint accessible | Critical | Detection | HTTP GET customreport2 | HTTP 200 | Yes |
+| WD-RPT-002 | Report returns data | Critical | Detection | XML response parse | Non-empty result set | Yes |
+| WD-RPT-003 | Required columns present (13) | Critical | Detection | XML column inspection | All 13 columns found | Yes |
+| WD-RPT-004 | Calculated fields present (3) | High | Detection | XML calc field check | Country_Code, Level, Mgr_Sup_Org_Id | Yes |
+| WD-RPT-005 | Report response time | Medium | Detection | Latency measurement | < 5 seconds | Advisory |
+
+### 13. SkillsSpec — Workday Connection Sharing (High Priority)
+
+| Checkpoint ID | Validation Item | Priority | Stage | Validation Method | Expected Result | Gating |
+|---------------|----------------|----------|-------|-------------------|-----------------|--------|
+| WD-SHARE-001 | Workday SOAP connections shared | High | Detection | PP Admin API | All shared with tenant | Yes |
+| WD-SHARE-002 | Workday OAuth connections shared | High | Detection | PP Admin API | All shared with tenant | Yes |
+| WD-SHARE-003 | Dataverse connections shared | High | Detection | PP Admin API | Shared with tenant | Yes |
+| WD-SHARE-004 | Overall sharing assessment | High | Diagnosis | Aggregate check | All connections tenant-shared | Yes |
+
+### 14. SkillsSpec — Entra SSO for Workday (High Priority)
+
+| Checkpoint ID | Validation Item | Priority | Stage | Validation Method | Expected Result | Gating |
+|---------------|----------------|----------|-------|-------------------|-----------------|--------|
+| WD-ENTRA-001 | Workday Enterprise App exists | High | Detection | Graph API / Manual | Service Principal found | Yes |
+| WD-ENTRA-002 | SSO mode set to SAML | High | Detection | Graph API / Manual | PreferredSingleSignOnMode = saml | Yes |
+| WD-ENTRA-003 | SAML Relay State configured | Medium | Detection | Graph API / Manual | Relay State non-empty | Advisory |
+| WD-ENTRA-004 | App ID URI configured | High | Detection | Graph API / Manual | identifierUris non-empty | Yes |
+
+### 15. SkillsSpec — ServiceNow End-to-End (Critical Priority)
+
+| Checkpoint ID | Validation Item | Priority | Stage | Validation Method | Expected Result | Gating |
+|---------------|----------------|----------|-------|-------------------|-----------------|--------|
+| SN-E2E-001 | HRSD Knowledge Base accessible | Critical | Detection | REST /kb_knowledge | HTTP 200 + results | Yes |
+| SN-E2E-002 | HR Case table accessible | Critical | Detection | REST /sn_hr_core_case | HTTP 200 | Yes |
+| SN-E2E-003 | ITSM Incidents accessible | High | Detection | REST /incident | HTTP 200 | Yes |
+| SN-E2E-004 | User lookup functional | High | Detection | REST /sys_user | HTTP 200 + user found | Yes |
+
+### 16. SkillsSpec — ServiceNow OAuth/OIDC Config (High Priority)
+
+| Checkpoint ID | Validation Item | Priority | Stage | Validation Method | Expected Result | Gating |
+|---------------|----------------|----------|-------|-------------------|-----------------|--------|
+| SN-OAUTH-001 | OIDC Provider record exists | High | Diagnosis | REST /oauth_entity | Record found | Yes |
+| SN-OAUTH-002 | Entra metadata URL correct | High | Diagnosis | REST field validation | login.microsoftonline.com | Yes |
+| SN-OAUTH-003 | Redirect URL matches GCS | High | Diagnosis | REST field validation | gcs.office.com endpoint | Yes |
+| SN-OAUTH-004 | Token lifespan — refresh | High | Diagnosis | REST field validation | ≥ 31536000 | Yes |
+| SN-OAUTH-005 | Token lifespan — access | Medium | Diagnosis | REST field validation | ≥ 43200 | Advisory |
+| SN-OAUTH-006 | User claim & JTI config | High | Diagnosis | REST field validation | Claim=Oid, JTI=false | Yes |
+
+### 17. SkillsSpec — Entra SSO for ServiceNow (High Priority)
+
+| Checkpoint ID | Validation Item | Priority | Stage | Validation Method | Expected Result | Gating |
+|---------------|----------------|----------|-------|-------------------|-----------------|--------|
+| SN-ENTRA-001 | ServiceNow App Registration exists | High | Detection | Graph API / Manual | App Registration found | Yes |
+| SN-ENTRA-002 | Token claims configured | High | Detection | Graph API / Manual | aud, email, UPN claims | Yes |
+| SN-ENTRA-003 | Exposed API scope configured | High | Detection | Graph API / Manual | user_impersonation scope | Yes |
+| SN-ENTRA-004 | Pre-authorized client configured | High | Detection | Graph API / Manual | Client c26b24aa authorized | Yes |
+
+### 18. SkillsSpec — ServiceNow Connection Sharing (High Priority)
+
+| Checkpoint ID | Validation Item | Priority | Stage | Validation Method | Expected Result | Gating |
+|---------------|----------------|----------|-------|-------------------|-----------------|--------|
+| SN-SHARE-001 | ServiceNow connections shared | High | Detection | PP Admin API | Shared with tenant | Yes |
+
+### 19. SkillsSpec — Topic End-to-End (High Priority)
+
+| Checkpoint ID | Validation Item | Priority | Stage | Validation Method | Expected Result | Gating |
+|---------------|----------------|----------|-------|-------------------|-----------------|--------|
+| TOPIC-E2E-001 | Workday topic end-to-end | Critical | Detection | Copilot prompt test | Valid response | Yes |
+| TOPIC-E2E-002 | ServiceNow topic end-to-end | High | Detection | Copilot prompt test | Valid response | Yes |
+| TOPIC-E2E-003 | Response quality assessment | Medium | Diagnosis | Keyword + latency | < 5s, relevant content | Advisory |
+
 ## Validation Priority Levels
 
 - **Critical**: Must pass before proceeding to deployment

@@ -121,6 +121,12 @@ function Show-TestMenu {
     Write-Host "  [4] SAP Connectivity (OData/RFC)" -ForegroundColor White
     Write-Host "  [5] Copilot Agent Response Quality" -ForegroundColor White
     Write-Host ""
+    Write-Host "  CONNECTOR READINESS (SkillsSpec)" -ForegroundColor DarkYellow
+    Write-Host "  [6] ServiceNow E2E Test   - Functional end-to-end validation" -ForegroundColor White
+    Write-Host "  [7] ServiceNow OAuth      - Deep OAuth/OIDC diagnostics" -ForegroundColor White
+    Write-Host "  [8] Entra SSO (Workday)   - Validate Entra SSO config" -ForegroundColor White
+    Write-Host "  [9] Entra SSO (ServiceNow)- Validate Entra SSO config" -ForegroundColor White
+    Write-Host ""
     Write-Host "  [A] Run All Tests" -ForegroundColor Green
     Write-Host "  [W] Run All Workday Tests (1+2)" -ForegroundColor Green
     Write-Host "  [Q] Quit" -ForegroundColor Red
@@ -129,7 +135,7 @@ function Show-TestMenu {
     do {
         $selection = Read-Host "Enter selection"
         $selection = $selection.ToUpper()
-    } until ($selection -in @('1','2','3','4','5','A','W','Q'))
+    } until ($selection -in @('1','2','3','4','5','6','7','8','9','A','W','Q'))
     
     return $selection
 }
@@ -672,7 +678,11 @@ if ($TestSuite -eq "Interactive") {
         '3' { $testsToRun = @('ServiceNow') }
         '4' { $testsToRun = @('SAP') }
         '5' { $testsToRun = @('CopilotAgent') }
-        'A' { $testsToRun = @('WorkdayISU', 'WorkdaySSO', 'ServiceNow', 'SAP', 'CopilotAgent') }
+        '6' { $testsToRun = @('ServiceNowE2E') }
+        '7' { $testsToRun = @('ServiceNowOAuth') }
+        '8' { $testsToRun = @('EntraWorkdaySSO') }
+        '9' { $testsToRun = @('EntraServiceNowSSO') }
+        'A' { $testsToRun = @('WorkdayISU', 'WorkdaySSO', 'ServiceNow', 'SAP', 'CopilotAgent', 'ServiceNowE2E', 'ServiceNowOAuth', 'EntraWorkdaySSO', 'EntraServiceNowSSO') }
         'W' { $testsToRun = @('WorkdayISU', 'WorkdaySSO') }
         'Q' { 
             Write-Host "`nExiting..." -ForegroundColor Yellow
@@ -738,6 +748,70 @@ foreach ($test in $testsToRun) {
                 $params.EnvironmentId = $config.copilot.environmentId
             }
             Invoke-TestWithTiming -TestName "Copilot Agent Response Quality" -TestScript { Test-CopilotAgent @params } -Parameters $params
+        }
+        'ServiceNowE2E' {
+            $params = @{}
+            if ($config -and $config.servicenow) {
+                $params.Instance = $config.servicenow.instance
+                $params.Username = $config.servicenow.username
+                $params.Password = $config.servicenow.password
+            }
+            Invoke-TestWithTiming -TestName "ServiceNow E2E Functional Test" -TestScript {
+                $testScript = Join-Path $PSScriptRoot "Test-ServiceNowEndToEnd.ps1"
+                if (Test-Path $testScript) {
+                    . $testScript
+                    $results = Test-ServiceNowEndToEnd @params
+                    $failed = ($results | Where-Object { $_.Status -eq 'Failed' }).Count
+                    return @{ Status = if ($failed -eq 0) { "Passed" } else { "Failed" }; Message = "$($results.Count) checks, $failed failed"; Details = ($results | Format-Table -Auto | Out-String) }
+                } else {
+                    return @{ Status = "Skipped"; Message = "Test-ServiceNowEndToEnd.ps1 not found"; Details = "" }
+                }
+            }
+        }
+        'ServiceNowOAuth' {
+            $params = @{}
+            if ($config -and $config.servicenow) {
+                $params.Instance = $config.servicenow.instance
+                $params.Username = $config.servicenow.username
+                $params.Password = $config.servicenow.password
+            }
+            Invoke-TestWithTiming -TestName "ServiceNow OAuth Diagnostics" -TestScript {
+                $testScript = Join-Path $PSScriptRoot "Test-ServiceNowOAuthConfig.ps1"
+                if (Test-Path $testScript) {
+                    . $testScript
+                    $results = Test-ServiceNowOAuthConfig @params
+                    $failed = ($results | Where-Object { $_.Status -eq 'Failed' }).Count
+                    return @{ Status = if ($failed -eq 0) { "Passed" } else { "Failed" }; Message = "$($results.Count) checks, $failed failed"; Details = ($results | Format-Table -Auto | Out-String) }
+                } else {
+                    return @{ Status = "Skipped"; Message = "Test-ServiceNowOAuthConfig.ps1 not found"; Details = "" }
+                }
+            }
+        }
+        'EntraWorkdaySSO' {
+            Invoke-TestWithTiming -TestName "Entra SSO (Workday)" -TestScript {
+                $testScript = Join-Path $PSScriptRoot "..\WorkdaySuite\Test-EntraWorkdaySSO.ps1"
+                if (Test-Path $testScript) {
+                    . $testScript
+                    $results = Test-EntraWorkdaySSO
+                    $failed = ($results | Where-Object { $_.Status -eq 'Failed' }).Count
+                    return @{ Status = if ($failed -eq 0) { "Passed" } else { "Failed" }; Message = "$($results.Count) checks, $failed failed"; Details = ($results | Format-Table -Auto | Out-String) }
+                } else {
+                    return @{ Status = "Skipped"; Message = "Test-EntraWorkdaySSO.ps1 not found"; Details = "" }
+                }
+            }
+        }
+        'EntraServiceNowSSO' {
+            Invoke-TestWithTiming -TestName "Entra SSO (ServiceNow)" -TestScript {
+                $testScript = Join-Path $PSScriptRoot "Test-EntraServiceNowSSO.ps1"
+                if (Test-Path $testScript) {
+                    . $testScript
+                    $results = Test-EntraServiceNowSSO
+                    $failed = ($results | Where-Object { $_.Status -eq 'Failed' }).Count
+                    return @{ Status = if ($failed -eq 0) { "Passed" } else { "Failed" }; Message = "$($results.Count) checks, $failed failed"; Details = ($results | Format-Table -Auto | Out-String) }
+                } else {
+                    return @{ Status = "Skipped"; Message = "Test-EntraServiceNowSSO.ps1 not found"; Details = "" }
+                }
+            }
         }
     }
 }

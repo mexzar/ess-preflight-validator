@@ -110,7 +110,8 @@ function Invoke-WorkdayValidationSuite {
     
     # Determine step count based on options
     $totalSteps = 4
-    if ($IncludeSSODiagnostics) { $totalSteps = 5 }
+    if ($IncludeSSODiagnostics) { $totalSteps = 7 }
+    else { $totalSteps = 6 }
 
     # ═══════════════════════════════════════════════════════════════════
     # Step 1: Environment Variables Validation
@@ -145,7 +146,7 @@ function Invoke-WorkdayValidationSuite {
     # ═══════════════════════════════════════════════════════════════════
     # Step 4: Connectivity Test (Optional)
     # ═══════════════════════════════════════════════════════════════════
-    $connectivityStepNum = if ($IncludeSSODiagnostics) { 4 } else { 4 }
+    $connectivityStepNum = 4
     Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
     Write-Host "  🌐 Step $connectivityStepNum/$totalSteps`: Workday Connectivity" -ForegroundColor Cyan
     Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
@@ -199,6 +200,61 @@ function Invoke-WorkdayValidationSuite {
         
         $ssoResults = Test-WorkdaySSOConfiguration @ssoParams
         $suiteResults += $ssoResults
+    }
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Step 6: RaaS Report Structure Validation (SkillsSpec)
+    # ═══════════════════════════════════════════════════════════════════
+    $rptStepNum = if ($IncludeSSODiagnostics) { 6 } else { 5 }
+    Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+    Write-Host "  📊 Step $rptStepNum/$totalSteps`: RaaS Report Structure & Connection Sharing" -ForegroundColor Cyan
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+
+    $reportScript = Join-Path $PSScriptRoot "Test-WorkdayReportStructure.ps1"
+    if (Test-Path $reportScript) {
+        try {
+            . $reportScript
+            $rptResults = Test-WorkdayReportStructure
+            $suiteResults += $rptResults
+        } catch {
+            Write-Warning "  Report structure validation error: $_"
+        }
+    } else {
+        Write-Host "  ⏭️  Test-WorkdayReportStructure.ps1 not found - skipping" -ForegroundColor Yellow
+    }
+
+    $shareScript = Join-Path $PSScriptRoot "Test-WorkdayConnectionSharing.ps1"
+    if (Test-Path $shareScript) {
+        try {
+            . $shareScript
+            $shareResults = Test-WorkdayConnectionSharing -EnvironmentId $EnvironmentId
+            $suiteResults += $shareResults
+        } catch {
+            Write-Warning "  Connection sharing validation error: $_"
+        }
+    } else {
+        Write-Host "  ⏭️  Test-WorkdayConnectionSharing.ps1 not found - skipping" -ForegroundColor Yellow
+    }
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Step 7: Entra SSO Validation (SkillsSpec)
+    # ═══════════════════════════════════════════════════════════════════
+    $entraStepNum = if ($IncludeSSODiagnostics) { 7 } else { 6 }
+    Write-Host "`n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+    Write-Host "  🔑 Step $entraStepNum/$totalSteps`: Entra ID SSO (Workday)" -ForegroundColor Cyan
+    Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
+
+    $entraScript = Join-Path $PSScriptRoot "Test-EntraWorkdaySSO.ps1"
+    if (Test-Path $entraScript) {
+        try {
+            . $entraScript
+            $entraResults = Test-EntraWorkdaySSO
+            $suiteResults += $entraResults
+        } catch {
+            Write-Warning "  Entra SSO validation error: $_"
+        }
+    } else {
+        Write-Host "  ⏭️  Test-EntraWorkdaySSO.ps1 not found - skipping" -ForegroundColor Yellow
     }
 
     # ═══════════════════════════════════════════════════════════════════

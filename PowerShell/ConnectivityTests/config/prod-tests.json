@@ -11,7 +11,19 @@
     "sso": {
       "tenantId": "12345678-1234-1234-1234-123456789012",
       "description": "Azure AD tenant ID for OAuth SSO authentication"
-    }
+    },
+    "raas": {
+      "reportName": "WD_User_Context",
+      "reportOwner": "ISU_WQL_COPILOT",
+      "expectedColumns": [
+        "Employee_ID", "Legal_Name", "Legal_First_Name", "Legal_Last_Name",
+        "Work_Email", "Manager_Name", "Job_Title", "Business_Title",
+        "Location", "Cost_Center", "Company", "Supervisory_Organization", "Worker_Type"
+      ],
+      "expectedCalcFields": ["Is_Manager", "Is_Terminated", "Has_Direct_Reports"],
+      "description": "RaaS report configuration for Workday User Context validation"
+    },
+    "baseUrl": "https://wd2-impl-services1.workday.com"
   },
   "servicenow": {
     "instance": "yourcompany",
@@ -23,6 +35,12 @@
       "enabled": false
     },
     "description": "ServiceNow instance configuration (yourcompany.service-now.com)"
+  },
+  "entra": {
+    "workdayAppId": "4e4707ca-5f53-46a6-a819-f7765446e6ff",
+    "servicenowAppClientId": "c26b24aa-7874-4e06-ad55-7d06b1f79b63",
+    "requiredScopes": ["Application.Read.All"],
+    "description": "Entra ID (Azure AD) app IDs for SSO validation. workdayAppId is the Workday Enterprise App. servicenowAppClientId is the ServiceNow API scope client."
   },
   "sap": {
     "endpoint": "https://sap-gateway.yourcompany.com:8000/sap/opu/odata/sap/",

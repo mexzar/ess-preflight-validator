@@ -61,7 +61,7 @@ function Test-ESSDeploymentReadiness {
     [CmdletBinding()]
     param(
         [Parameter()]
-        [ValidateSet('Full', 'Prerequisites', 'Environment', 'Authentication', 'ExternalSystems', 'Content', 'Topics', 'Configuration', 'Publishing')]
+        [ValidateSet('Full', 'Prerequisites', 'Environment', 'Authentication', 'ExternalSystems', 'ConnectorReadiness', 'Content', 'Topics', 'Configuration', 'Publishing')]
         [string]$Scope = 'Full',
 
         [Parameter()]
@@ -150,6 +150,7 @@ function Test-ESSDeploymentReadiness {
                     Test-ESSEnvironment -EnvironmentId $EnvironmentId
                     Test-ESSAuthentication
                     Test-ESSExternalSystems -EnvironmentId $EnvironmentId
+                    Test-ESSConnectorReadiness -EnvironmentId $EnvironmentId
                     Test-ESSContent -EnvironmentId $EnvironmentId
                     Test-ESSTopics -EnvironmentId $EnvironmentId
                     Test-ESSConfiguration -EnvironmentId $EnvironmentId
@@ -159,6 +160,7 @@ function Test-ESSDeploymentReadiness {
                 'Environment' { Test-ESSEnvironment -EnvironmentId $EnvironmentId }
                 'Authentication' { Test-ESSAuthentication }
                 'ExternalSystems' { Test-ESSExternalSystems -EnvironmentId $EnvironmentId }
+                'ConnectorReadiness' { Test-ESSConnectorReadiness -EnvironmentId $EnvironmentId }
                 'Content' { Test-ESSContent -EnvironmentId $EnvironmentId }
                 'Topics' { Test-ESSTopics -EnvironmentId $EnvironmentId }
                 'Configuration' { Test-ESSConfiguration -EnvironmentId $EnvironmentId }
@@ -890,7 +892,22 @@ function Add-ValidationResult {
         [string]$Remediation = '',
 
         [Parameter()]
-        [string]$DocumentationLink = ''
+        [string]$DocumentationLink = '',
+
+        [Parameter(HelpMessage = 'Skills framework stage: Detection, Diagnosis, Remediation, Prevention')]
+        [ValidateSet('Detection', 'Diagnosis', 'Remediation', 'Prevention')]
+        [string]$Stage = 'Detection',
+
+        [Parameter(HelpMessage = 'Root cause analysis text (used in Diagnosis stage)')]
+        [string]$RootCause = '',
+
+        [Parameter(HelpMessage = 'Confidence level: High, Medium, Low (used in Diagnosis stage)')]
+        [ValidateSet('High', 'Medium', 'Low', '')]
+        [string]$Confidence = '',
+
+        [Parameter(HelpMessage = 'Whether this check gates deployment: Yes, No, Advisory')]
+        [ValidateSet('Yes', 'No', 'Advisory', '')]
+        [string]$GatingSignal = ''
     )
 
     $validationResult = [PSCustomObject]@{
@@ -901,6 +918,10 @@ function Add-ValidationResult {
         Result             = $Result
         Remediation        = $Remediation
         DocumentationLink  = $DocumentationLink
+        Stage              = $Stage
+        RootCause          = $RootCause
+        Confidence         = $Confidence
+        GatingSignal       = $GatingSignal
         ValidationDate     = Get-Date
     }
 
@@ -1063,10 +1084,12 @@ function Generate-HTMLReport {
                 <tr>
                     <th>Checkpoint</th>
                     <th>Category</th>
+                    <th>Stage</th>
                     <th>Priority</th>
                     <th>Status</th>
                     <th>Result</th>
-                    <th>Remediation</th>
+                    <th>Diagnosis / Remediation</th>
+                    <th>Gating</th>
                 </tr>
             </thead>
             <tbody>
@@ -1075,15 +1098,30 @@ function Generate-HTMLReport {
     foreach ($result in $Results) {
         $priorityClass = "priority-$($result.Priority.ToLower())"
         $statusClass = "status-$($result.Status.ToLower())"
+        $stageLabel = if ($result.Stage) { $result.Stage } else { 'Detection' }
+        $gatingLabel = if ($result.GatingSignal) { $result.GatingSignal } else { '-' }
+
+        # Build diagnosis/remediation cell with collapsible detail
+        $diagCell = ''
+        if ($result.RootCause) {
+            $confidence = if ($result.Confidence) { " ($($result.Confidence) confidence)" } else { '' }
+            $diagCell += "<strong>Root Cause:</strong> $($result.RootCause)$confidence<br/>"
+        }
+        if ($result.Remediation) {
+            $diagCell += "<strong>Fix:</strong> $($result.Remediation)"
+        }
+        if (-not $diagCell) { $diagCell = '-' }
         
         $html += @"
                 <tr class="$priorityClass">
                     <td>$($result.CheckpointId)</td>
                     <td>$($result.Category)</td>
+                    <td>$stageLabel</td>
                     <td>$($result.Priority)</td>
                     <td class="$statusClass">$($result.Status)</td>
                     <td>$($result.Result)</td>
-                    <td>$($result.Remediation)</td>
+                    <td>$diagCell</td>
+                    <td>$gatingLabel</td>
                 </tr>
 "@
     }
@@ -1308,6 +1346,106 @@ function Get-AgentSolutionComponents {
     }
 }
 
+<#
+.SYNOPSIS
+    Validates connector readiness using SkillsSpec 4-stage framework
+
+.DESCRIPTION
+    Runs deep connector validation for Workday and ServiceNow integrations
+    using the Detection → Diagnosis → Remediation → Prevention skills pipeline.
+    Loads and executes new SkillsSpec validation scripts from WorkdaySuite and ConnectivityTests.
+#>
+function Test-ESSConnectorReadiness {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$EnvironmentId
+    )
+
+    Write-Host "`n🔍 Validating Connector Readiness (SkillsSpec)..." -ForegroundColor Cyan
+
+    $workdaySuitePath = Join-Path $PSScriptRoot "WorkdaySuite"
+    $connectivityPath = Join-Path $PSScriptRoot "ConnectivityTests"
+
+    # Workday connector readiness scripts
+    $workdayScripts = @(
+        @{ File = "Test-WorkdayReportStructure.ps1"; Desc = "RaaS Report Structure" },
+        @{ File = "Test-WorkdayConnectionSharing.ps1"; Desc = "Connection Sharing" },
+        @{ File = "Test-EntraWorkdaySSO.ps1"; Desc = "Entra SSO (Workday)" }
+    )
+
+    foreach ($script in $workdayScripts) {
+        $scriptPath = Join-Path $workdaySuitePath $script.File
+        if (Test-Path $scriptPath) {
+            try {
+                Write-Host "  📋 Running $($script.Desc)..." -ForegroundColor Magenta
+                . $scriptPath
+                $funcName = [System.IO.Path]::GetFileNameWithoutExtension($script.File) -replace '^Test-', 'Test-'
+                $results = & $funcName -EnvironmentId $EnvironmentId
+                foreach ($r in $results) {
+                    Add-ValidationResult -CheckpointId $r.CheckpointId -Category $r.Category `
+                        -Priority $r.Priority -Status $r.Status -Result $r.Result `
+                        -Remediation $r.Remediation -DocumentationLink $r.DocumentationLink `
+                        -Stage $r.Stage -RootCause $r.RootCause -Confidence $r.Confidence `
+                        -GatingSignal $r.GatingSignal
+                }
+            } catch {
+                Write-Warning "  $($script.Desc) error: $_"
+            }
+        }
+    }
+
+    # ServiceNow connector readiness scripts
+    $snScripts = @(
+        @{ File = "Test-ServiceNowEndToEnd.ps1"; Desc = "ServiceNow E2E" },
+        @{ File = "Test-ServiceNowOAuthConfig.ps1"; Desc = "ServiceNow OAuth Config" },
+        @{ File = "Test-EntraServiceNowSSO.ps1"; Desc = "Entra SSO (ServiceNow)" },
+        @{ File = "Test-ServiceNowConnectionSharing.ps1"; Desc = "SN Connection Sharing" }
+    )
+
+    foreach ($script in $snScripts) {
+        $scriptPath = Join-Path $connectivityPath $script.File
+        if (Test-Path $scriptPath) {
+            try {
+                Write-Host "  📋 Running $($script.Desc)..." -ForegroundColor Magenta
+                . $scriptPath
+                $funcName = [System.IO.Path]::GetFileNameWithoutExtension($script.File) -replace '^Test-', 'Test-'
+                $results = & $funcName -EnvironmentId $EnvironmentId
+                foreach ($r in $results) {
+                    Add-ValidationResult -CheckpointId $r.CheckpointId -Category $r.Category `
+                        -Priority $r.Priority -Status $r.Status -Result $r.Result `
+                        -Remediation $r.Remediation -DocumentationLink $r.DocumentationLink `
+                        -Stage $r.Stage -RootCause $r.RootCause -Confidence $r.Confidence `
+                        -GatingSignal $r.GatingSignal
+                }
+            } catch {
+                Write-Warning "  $($script.Desc) error: $_"
+            }
+        }
+    }
+
+    # Topic E2E
+    $topicScript = Join-Path $connectivityPath "Test-ESSTopicEndToEnd.ps1"
+    if (Test-Path $topicScript) {
+        try {
+            Write-Host "  📋 Running Topic E2E validation..." -ForegroundColor Magenta
+            . $topicScript
+            $results = Test-ESSTopicEndToEnd -EnvironmentId $EnvironmentId
+            foreach ($r in $results) {
+                Add-ValidationResult -CheckpointId $r.CheckpointId -Category $r.Category `
+                    -Priority $r.Priority -Status $r.Status -Result $r.Result `
+                    -Remediation $r.Remediation -Stage $r.Stage -RootCause $r.RootCause `
+                    -Confidence $r.Confidence -GatingSignal $r.GatingSignal
+            }
+        } catch {
+            Write-Warning "  Topic E2E error: $_"
+        }
+    }
+
+    Write-Host "✓ Connector readiness validation completed" -ForegroundColor Green
+    return $script:ValidationResults
+}
+
 # Export module members
 Export-ModuleMember -Function @(
     'Test-ESSDeploymentReadiness',
@@ -1315,6 +1453,7 @@ Export-ModuleMember -Function @(
     'Test-ESSEnvironment',
     'Test-ESSAuthentication',
     'Test-ESSExternalSystems',
+    'Test-ESSConnectorReadiness',
     'Test-ESSContent',
     'Test-ESSTopics',
     'Test-ESSConfiguration',

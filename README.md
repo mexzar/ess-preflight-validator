@@ -4,7 +4,7 @@
 
 ### Download
 
-**[Download Latest Release](../../releases/latest)** - Get `ESS-Validator-v1.7.0.zip`
+**[Download Latest Release](../../releases/latest)** - Get `ESS-Validator-v1.8.0.zip`
 
 ### Requirements
 - Windows 10/11 or Windows Server 2019+
@@ -12,7 +12,7 @@
 - Microsoft 365 admin credentials for validation
 
 ### Setup
-1. Download `ESS-Validator-v1.7.0.zip` from the latest release
+1. Download `ESS-Validator-v1.8.0.zip` from the latest release
 2. Extract to `C:\ESS-Validator\`
 3. Double-click **ESS-Validator.exe**
 4. Follow the menu to run validations
@@ -56,11 +56,23 @@ Standalone tools for deep Workday integration testing:
 | **Test-WorkdaySSOConnectivity.ps1** | OAuth Device Code Flow testing for SSO validation |
 | **Test-WorkdaySSOConfiguration.ps1** | Validates 4 required Power Platform connections |
 | **Test-WorkdayConnectivity.ps1** | Basic endpoint and auth validation |
+| **Test-WorkdayReportStructure.ps1** | RaaS report column & calculated field validation (SkillsSpec) |
+| **Test-WorkdayConnectionSharing.ps1** | Verifies Workday connections shared with all users (SkillsSpec) |
+| **Test-EntraWorkdaySSO.ps1** | Entra ID SSO configuration for Workday connector (SkillsSpec) |
 
 ### 4. Connectivity Test Suite
 - **Invoke-ConnectivitySuite.ps1**: Orchestrates all connectivity tests
 - **Test-CopilotAgentResponse.ps1**: Validates Copilot Studio agent responses
 - **Test-ServiceNowConnectivity.ps1**: ServiceNow HRSD/ITSM validation
+- **Test-ServiceNowEndToEnd.ps1**: Functional end-to-end ServiceNow tests (HRSD, ITSM) (SkillsSpec)
+- **Test-ServiceNowOAuthConfig.ps1**: Deep OAuth/OIDC diagnostics on failure (SkillsSpec)
+- **Test-EntraServiceNowSSO.ps1**: Entra ID SSO configuration for ServiceNow (SkillsSpec)
+- **Test-ServiceNowConnectionSharing.ps1**: ServiceNow connection sharing validation (SkillsSpec)
+- **Test-ESSTopicEndToEnd.ps1**: End-to-end Copilot topic functional tests (SkillsSpec)
+
+### 5. Skills Framework (SkillsSpec)
+All validations follow a 4-stage model: **Detection → Diagnosis → Remediation → Prevention**.
+Each check reports its stage, root cause analysis, confidence level, and whether it is a gating signal for deployment. Every module is independently callable — users with limited permissions can run only the modules they have access to.
 
 ## Validation Coverage
 

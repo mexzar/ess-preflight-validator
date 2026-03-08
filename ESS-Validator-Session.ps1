@@ -123,7 +123,7 @@ function Show-Menu {
     Write-Host "  RUN ESS VALIDATION TESTS" -ForegroundColor DarkCyan
     Write-Host "  [1] Full Validation       - Complete ESS check, HTML report" -ForegroundColor White
     Write-Host "  [2] Workday Deep Dive     - Workday connections, flows, API" -ForegroundColor White
-    Write-Host "  [3] ServiceNow Validation - HRSD/ITSM flows check" -ForegroundColor White
+    Write-Host "  [3] ServiceNow Deep Dive  - HRSD/ITSM, OAuth, Entra SSO" -ForegroundColor White
     Write-Host ""
     Write-Host "  DEPLOYMENT GUIDANCE" -ForegroundColor DarkGreen
     Write-Host "  [4] Deployment Wizard     - Guided 6-phase checklist" -ForegroundColor Green
@@ -271,6 +271,11 @@ function Show-WorkdayMenu {
     Write-Host "  [5] Basic User Test       - Test Workday API with credentials" -ForegroundColor White
     Write-Host "  [6] SSO Connectivity      - Test Azure AD OAuth flow (end-user)" -ForegroundColor White
     Write-Host ""
+    Write-Host "  CONNECTOR READINESS (SkillsSpec)" -ForegroundColor DarkGray
+    Write-Host "  [7] Report Structure      - Validate WD User Context RaaS report" -ForegroundColor White
+    Write-Host "  [8] Connection Sharing    - Check connections shared with users" -ForegroundColor White
+    Write-Host "  [9] Entra SSO (Workday)   - Validate Entra ID SSO configuration" -ForegroundColor White
+    Write-Host ""
     Write-Host "  [B] Back to main menu" -ForegroundColor DarkGray
     Write-Host ""
 }
@@ -360,6 +365,45 @@ function Invoke-WorkdayValidation {
                     Write-Host "  [X] Test-WorkdaySSOConnectivity.ps1 not found" -ForegroundColor Red
                 }
             }
+            "7" {
+                Write-Host ""
+                $scriptPath = Join-Path $workdaySuitePath "Test-WorkdayReportStructure.ps1"
+                if (Test-Path $scriptPath) {
+                    . $scriptPath
+                    $results = Test-WorkdayReportStructure
+                    Show-ResultsSummary $results
+                } else {
+                    Write-Host "  [X] Test-WorkdayReportStructure.ps1 not found" -ForegroundColor Red
+                }
+            }
+            "8" {
+                Write-Host ""
+                Write-Host "  Enter Power Platform Environment ID: " -NoNewline -ForegroundColor Cyan
+                $envId = Read-Host
+                if ([string]::IsNullOrWhiteSpace($envId)) {
+                    Write-Host "  [X] Environment ID required" -ForegroundColor Red
+                } else {
+                    $scriptPath = Join-Path $workdaySuitePath "Test-WorkdayConnectionSharing.ps1"
+                    if (Test-Path $scriptPath) {
+                        . $scriptPath
+                        $results = Test-WorkdayConnectionSharing -EnvironmentId $envId
+                        Show-ResultsSummary $results
+                    } else {
+                        Write-Host "  [X] Test-WorkdayConnectionSharing.ps1 not found" -ForegroundColor Red
+                    }
+                }
+            }
+            "9" {
+                Write-Host ""
+                $scriptPath = Join-Path $workdaySuitePath "Test-EntraWorkdaySSO.ps1"
+                if (Test-Path $scriptPath) {
+                    . $scriptPath
+                    $results = Test-EntraWorkdaySSO
+                    Show-ResultsSummary $results
+                } else {
+                    Write-Host "  [X] Test-EntraWorkdaySSO.ps1 not found" -ForegroundColor Red
+                }
+            }
             default {
                 Write-Host "  [X] Invalid option" -ForegroundColor Red
             }
@@ -392,76 +436,120 @@ function Show-ResultsSummary {
 
 #region ServiceNow Validation
 
+function Show-ServiceNowMenu {
+    Write-Host ""
+    Write-Host "  ============================================================" -ForegroundColor Cyan
+    Write-Host "  SERVICENOW DEEP DIVE" -ForegroundColor Cyan
+    Write-Host "  ============================================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  Which ServiceNow test would you like to run?" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  POWER PLATFORM CHECKS" -ForegroundColor DarkGray
+    Write-Host "  [1] Flow Status           - Check ServiceNow flows (HRSD/ITSM)" -ForegroundColor White
+    Write-Host "  [2] Connection Sharing    - Check SN connections shared with users" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  SERVICENOW API TESTS" -ForegroundColor DarkGray
+    Write-Host "  [3] E2E Functional Test   - Test HRSD/ITSM APIs end-to-end" -ForegroundColor White
+    Write-Host "  [4] OAuth Diagnostics     - Deep OAuth/OIDC config analysis" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  ENTRA ID" -ForegroundColor DarkGray
+    Write-Host "  [5] Entra SSO (ServiceNow)- Validate Entra ID SSO configuration" -ForegroundColor White
+    Write-Host ""
+    Write-Host "  [B] Back to main menu" -ForegroundColor DarkGray
+    Write-Host ""
+}
+
 function Invoke-ServiceNowValidation {
-    Write-Host ""
-    Write-Host "  ============================================================" -ForegroundColor Cyan
-    Write-Host "  SERVICENOW VALIDATION" -ForegroundColor Cyan
-    Write-Host "  ============================================================" -ForegroundColor Cyan
-    Write-Host ""
-    
-    Write-Host "  Enter Power Platform Environment ID: " -NoNewline -ForegroundColor Cyan
-    $envId = Read-Host
-    
-    if ([string]::IsNullOrWhiteSpace($envId)) {
-        Write-Host "  [X] Environment ID is required" -ForegroundColor Red
-        return
-    }
-    
-    Write-Host ""
-    Write-Host "  Checking ServiceNow flows..." -ForegroundColor Gray
-    
-    try {
-        $flows = Get-AdminFlow -EnvironmentName $envId -ErrorAction Stop | 
-                 Where-Object { $_.DisplayName -like '*ServiceNow*' }
+    while ($true) {
+        Show-ServiceNowMenu
+        Write-Host "  Select option: " -NoNewline -ForegroundColor Cyan
+        $choice = Read-Host
         
-        if ($flows) {
-            Write-Host ""
-            Write-Host "  [OK] Found $($flows.Count) ServiceNow flow(s)" -ForegroundColor Green
-            Write-Host ""
-            
-            # Categorize flows
-            $hrsd = $flows | Where-Object { $_.DisplayName -match 'HRSD|HR Service' }
-            $itsm = $flows | Where-Object { $_.DisplayName -match 'ITSM|Incident|Ticket' }
-            $other = $flows | Where-Object { $_.DisplayName -notmatch 'HRSD|HR Service|ITSM|Incident|Ticket' }
-            
-            if ($hrsd) {
-                Write-Host "  HRSD Flows ($($hrsd.Count))" -ForegroundColor Cyan
-                foreach ($flow in $hrsd) {
-                    $status = if ($flow.Enabled) { "ON" } else { "OFF" }
-                    $color = if ($flow.Enabled) { "Green" } else { "Red" }
-                    Write-Host "    [$status] $($flow.DisplayName)" -ForegroundColor $color
-                }
+        if ($choice -match '^[Bb]$') { return }
+        
+        $connectivityPath = Join-Path $script:ScriptRoot "PowerShell\ConnectivityTests"
+        
+        switch ($choice) {
+            "1" {
                 Write-Host ""
-            }
-            
-            if ($itsm) {
-                Write-Host "  ITSM Flows ($($itsm.Count))" -ForegroundColor Cyan
-                foreach ($flow in $itsm) {
-                    $status = if ($flow.Enabled) { "ON" } else { "OFF" }
-                    $color = if ($flow.Enabled) { "Green" } else { "Red" }
-                    Write-Host "    [$status] $($flow.DisplayName)" -ForegroundColor $color
+                Write-Host "  Enter Power Platform Environment ID: " -NoNewline -ForegroundColor Cyan
+                $envId = Read-Host
+                if ([string]::IsNullOrWhiteSpace($envId)) {
+                    Write-Host "  [X] Environment ID required" -ForegroundColor Red
+                } else {
+                    try {
+                        $flows = Get-AdminFlow -EnvironmentName $envId -ErrorAction Stop | 
+                                 Where-Object { $_.DisplayName -like '*ServiceNow*' }
+                        if ($flows) {
+                            Write-Host "  [OK] Found $($flows.Count) ServiceNow flow(s)" -ForegroundColor Green
+                            foreach ($flow in $flows) {
+                                $status = if ($flow.Enabled) { "ON" } else { "OFF" }
+                                $color = if ($flow.Enabled) { "Green" } else { "Red" }
+                                Write-Host "    [$status] $($flow.DisplayName)" -ForegroundColor $color
+                            }
+                        } else {
+                            Write-Host "  [i] No ServiceNow flows found" -ForegroundColor Gray
+                        }
+                    } catch {
+                        Write-Host "  [X] Error: $($_.Exception.Message)" -ForegroundColor Red
+                    }
                 }
-                Write-Host ""
             }
-            
-            if ($other) {
-                Write-Host "  Other ServiceNow Flows ($($other.Count))" -ForegroundColor Cyan
-                foreach ($flow in $other) {
-                    $status = if ($flow.Enabled) { "ON" } else { "OFF" }
-                    $color = if ($flow.Enabled) { "Green" } else { "Red" }
-                    Write-Host "    [$status] $($flow.DisplayName)" -ForegroundColor $color
+            "2" {
+                Write-Host ""
+                Write-Host "  Enter Power Platform Environment ID: " -NoNewline -ForegroundColor Cyan
+                $envId = Read-Host
+                if ([string]::IsNullOrWhiteSpace($envId)) {
+                    Write-Host "  [X] Environment ID required" -ForegroundColor Red
+                } else {
+                    $scriptPath = Join-Path $connectivityPath "Test-ServiceNowConnectionSharing.ps1"
+                    if (Test-Path $scriptPath) {
+                        . $scriptPath
+                        $results = Test-ServiceNowConnectionSharing -EnvironmentId $envId
+                        Show-ResultsSummary $results
+                    } else {
+                        Write-Host "  [X] Test-ServiceNowConnectionSharing.ps1 not found" -ForegroundColor Red
+                    }
                 }
-                Write-Host ""
             }
-            
-            $enabledCount = ($flows | Where-Object { $_.Enabled }).Count
-            $disabledCount = ($flows | Where-Object { -not $_.Enabled }).Count
-            Write-Host "  Summary: $enabledCount enabled, $disabledCount disabled" -ForegroundColor $(if ($disabledCount -gt 0) { 'Yellow' } else { 'Green' })
-        } else {
-            Write-Host "  [i] No ServiceNow flows found in this environment" -ForegroundColor Gray
+            "3" {
+                $scriptPath = Join-Path $connectivityPath "Test-ServiceNowEndToEnd.ps1"
+                if (Test-Path $scriptPath) {
+                    . $scriptPath
+                    $results = Test-ServiceNowEndToEnd
+                    Show-ResultsSummary $results
+                } else {
+                    Write-Host "  [X] Test-ServiceNowEndToEnd.ps1 not found" -ForegroundColor Red
+                }
+            }
+            "4" {
+                $scriptPath = Join-Path $connectivityPath "Test-ServiceNowOAuthConfig.ps1"
+                if (Test-Path $scriptPath) {
+                    . $scriptPath
+                    $results = Test-ServiceNowOAuthConfig
+                    Show-ResultsSummary $results
+                } else {
+                    Write-Host "  [X] Test-ServiceNowOAuthConfig.ps1 not found" -ForegroundColor Red
+                }
+            }
+            "5" {
+                $scriptPath = Join-Path $connectivityPath "Test-EntraServiceNowSSO.ps1"
+                if (Test-Path $scriptPath) {
+                    . $scriptPath
+                    $results = Test-EntraServiceNowSSO
+                    Show-ResultsSummary $results
+                } else {
+                    Write-Host "  [X] Test-EntraServiceNowSSO.ps1 not found" -ForegroundColor Red
+                }
+            }
+            default {
+                Write-Host "  [X] Invalid option" -ForegroundColor Red
+            }
         }
-    } catch {
-        Write-Host "  [X] Error: $($_.Exception.Message)" -ForegroundColor Red
+        
+        Write-Host ""
+        Write-Host "  Press any key to continue..." -ForegroundColor DarkGray
+        $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
     }
 }
 
@@ -626,7 +714,7 @@ function Start-Session {
             "0" { Invoke-SignIn; Pause-ForUser }
             "1" { Invoke-FullValidation; Pause-ForUser }
             "2" { Invoke-WorkdayValidation }
-            "3" { Invoke-ServiceNowValidation; Pause-ForUser }
+            "3" { Invoke-ServiceNowValidation }
             "4" { Invoke-DeploymentWizard; Pause-ForUser }
             "5" { Show-Help; Pause-ForUser }
             "9" { Show-SessionInfo; Pause-ForUser }
